@@ -27,7 +27,7 @@ const DeviceSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 const Device = mongoose.model("Device", DeviceSchema);

@@ -21,6 +21,10 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cors("*"));
 app.use(morgan("dev"));
 // app.use('/public', express.static('public'));
+/* 🔓 AUTH */
+app.use("/api/auth", require("./routes/auth.routes"));
+
+/* 🔐 PROTECTED USER APIs */
 app.use("/api/user", require("./routes/userRoutes"));
 app.use("/api/site", require("./routes/siteRoutes"));
 app.use("/api/device", require("./routes/deviceRoutes"));
@@ -54,17 +58,17 @@ async function frontendStart() {
       let timer2 = setTimeout(async () => {
         // exec("chromium-browser --app=http://www.localhost:3000/ --kiosk",(err,stdout , stderr)=>{
         //let { stdout } = exec("firefox http://localhost:3000 --kiosk");
-       // if (stdout) {
-          console.log("//========= fireFox has been started =========//");
-          let timer3 = setTimeout(() => {
-            let { stdout } = exec(
-              "xdotool search --sync --onlyvisible --name firefox key F11"
-            );
-            if (stdout) {
-              console.log("//========= F11 Command has been executed ====//");
-            }
-            clearTimeout(timer3);
-          }, 6000);
+        // if (stdout) {
+        console.log("//========= fireFox has been started =========//");
+        let timer3 = setTimeout(() => {
+          let { stdout } = exec(
+            "xdotool search --sync --onlyvisible --name firefox key F11",
+          );
+          if (stdout) {
+            console.log("//========= F11 Command has been executed ====//");
+          }
+          clearTimeout(timer3);
+        }, 6000);
         //}
         clearTimeout(timer2);
         clearTimeout(masterTimer);
@@ -74,8 +78,6 @@ async function frontendStart() {
 }
 
 // ================================ Test ================================== //
-
-// ======================================================================== //
 
 // "638ca2205a1fc41d62e8b197"  //"RES"
 

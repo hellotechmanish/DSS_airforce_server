@@ -199,9 +199,9 @@ client.on("message", async function (topic, message) {
           let key = Object.keys(parsedData)[0]; //fetched the key at first index
           let msgObj = {};
           msgObj["deviceNumber"] = key;
-          msgObj["value"] = (parsedData[key] / 100).toFixed(2);
+          msgObj["value"] = (parsedData[key]).toFixed(2);
           console.log(
-            `NOdeID = ${nodeId} and RES VAlue = ${parsedData[key] / 100}`
+            `NOdeID = ${nodeId} and RES VAlue = ${parsedData[key]}`
           );
 
           if (DataObject[`${DeviceExists.nodeUid}`]["RES"]) {
@@ -232,7 +232,7 @@ client.on("message", async function (topic, message) {
           let key = Object.keys(parsedData)[0]; //fetched the key at first index
           let msgObj = {};
           msgObj["deviceNumber"] = key;
-          msgObj["value"] = (parsedData[key] / 100).toFixed(2);
+          msgObj["value"] = (parsedData[key]).toFixed(2);
 
           if (DataObject[`${DeviceExists.nodeUid}`]["NER"]) {
             DataObject[`${DeviceExists.nodeUid}`]["NER"]["DATASTREAMS"].push(
@@ -1479,7 +1479,7 @@ exports.getCsv = async (req, res, next) => {
   console.log("==== generateCSV ====");
   console.log("==== generateCSV ====");
   console.log("==== ++++++++++ ====");
-  // console.table(req.body);
+   console.table(req.body);
 
   if (!sensorName || !deviceId || !deviceNumber || !startDate || !endDate) {
     return res.status(400).json({ msg: "Please! provide all required data" });
@@ -1588,6 +1588,7 @@ exports.getCsv = async (req, res, next) => {
         header: Headers,
       });
 
+      
       writer.writeRecords(records).then(() => {
         console.log("Done!");
         return res.status(200).json({ msg: "CSV generated successfully" });
@@ -1700,6 +1701,7 @@ exports.getCsv = async (req, res, next) => {
 
         return res.status(200).json({ msg: "CSV GENERATED" });
       });
+      
       // return res.status(200).json({msg: records})
 
       // res.setHeader(
