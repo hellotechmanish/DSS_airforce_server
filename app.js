@@ -11,6 +11,7 @@ const moment = require("moment");
 const getRangebetweenDates = require("./helperFunction/getdatelist");
 var ObjectId = require("mongodb").ObjectId;
 const morgan = require("morgan");
+const { checkauth } = require("./middleware/checkauth");
 
 const app = express();
 require("dotenv").config();
@@ -25,10 +26,11 @@ app.use(morgan("dev"));
 app.use("/api/auth", require("./routes/auth.routes"));
 
 /* 🔐 PROTECTED USER APIs */
-app.use("/api/user", require("./routes/userRoutes"));
-app.use("/api/site", require("./routes/siteRoutes"));
-app.use("/api/device", require("./routes/deviceRoutes"));
-app.use("/api/alarm", require("./routes/alarmRoutes"));
+app.use("/api/user", checkauth, require("./routes/userRoutes"));
+app.use("/api/site", checkauth, require("./routes/siteRoutes"));
+
+app.use("/api/device", checkauth, require("./routes/deviceRoutes"));
+app.use("/api/alarm", checkauth, require("./routes/alarmRoutes"));
 
 mongoose.set("strictQuery", false);
 mongoose

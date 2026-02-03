@@ -137,18 +137,18 @@ exports.login = async (req, res, next) => {
 };
 
 // =========================== RESET Password ========================== //
-exports.resetPassword = async (req, res, next) => {
-  const { password, userId } = req.body;
-  try {
-    let updatePass = await User.findById(userId);
-    updatePass.password = password;
-    await updatePass.save();
-    return res.status(200).json({ msg: "Password Updated Successfully" });
-  } catch (error) {
-    console.log("Error from resetPassword", error);
-    return res.status(500).json({ msg: error.message });
-  }
-};
+// exports.resetPassword = async (req, res, next) => {
+//   const { password, userId } = req.body;
+//   try {
+//     let updatePass = await User.findById(userId);
+//     updatePass.password = password;
+//     await updatePass.save();
+//     return res.status(200).json({ msg: "Password Updated Successfully" });
+//   } catch (error) {
+//     console.log("Error from resetPassword", error);
+//     return res.status(500).json({ msg: error.message });
+//   }
+// };
 
 // ======================== Send token function ========================== //
 const sendToken = (users, statusCode, res) => {

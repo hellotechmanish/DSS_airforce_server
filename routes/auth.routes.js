@@ -5,5 +5,6 @@ const router = express.Router();
 
 /* 🔓 PUBLIC AUTH ROUTES */
 router.post("/login", authController.login);
+router.post("/forgot-password", authController.forgotPassword);
 
 module.exports = router;

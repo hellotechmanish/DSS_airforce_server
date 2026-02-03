@@ -1,40 +1,43 @@
 const express = require("express");
 const alarmController = require("../controllers/alarmController");
-const { checkauth } = require("../middleware/checkauth");
 const validate = require("../middleware/validationMethod");
+
 const routes = express.Router();
 
-routes.post("/getAllAlarm", checkauth, alarmController.getAllAlarm);
+/* 🔐 Already protected by app.js */
+
+/* ===================== GET ===================== */
+
+routes.get("/getAllAlarm", alarmController.getAllAlarm);
 
 routes.get(
   "/getAlarmData",
-  checkauth,
   validate.getAllAlarmBody,
-  alarmController.getAlarmData
+  alarmController.getAlarmData,
 );
 
 routes.get(
   "/getAlarmGraphValue",
-  checkauth,
   validate.getAlarmGraphValueBody,
-  alarmController.getAlarmGraphValue
+  alarmController.getAlarmGraphValue,
 );
 
 routes.get(
   "/getAllAlarmDataForDownload",
-  checkauth,
   validate.getAllAlarmDataForDownloadBody,
-  alarmController.getAllAlarmDataForDownload
+  alarmController.getAllAlarmDataForDownload,
 );
 
-routes.post("/deleteAlarm", checkauth, alarmController.deleteAlarm);
-routes.get("/filteredAlarm", checkauth, alarmController.filterAlarm);
-routes.post("/updateStatus", checkauth, alarmController.updateStatus);
-routes.get("/getAlarmStatus", checkauth, alarmController.getAlarmStatus);
-routes.get(
-  "/getNotificationCount",
-  checkauth,
-  alarmController.getNotificationCount
-);
+routes.get("/filteredAlarm", alarmController.filterAlarm);
+
+routes.get("/getAlarmStatus", alarmController.getAlarmStatus);
+
+routes.get("/getNotificationCount", alarmController.getNotificationCount);
+
+/* ===================== POST ===================== */
+
+routes.post("/deleteAlarm", alarmController.deleteAlarm);
+
+routes.post("/updateStatus", alarmController.updateStatus);
 
 module.exports = routes;
