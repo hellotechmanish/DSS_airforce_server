@@ -3,9 +3,8 @@ const User = require("../models/user");
 // This is for login function
 
 exports.login = async (req, res) => {
-  console.log("//====== login func() got hit =====//");
+  console.log("Login api is know running...");
   const { uid, password } = req.body;
-  console.log("body", req.body);
 
   if (!uid || !password) {
     return res.status(400).json({ msg: "Please provide credentials" });
@@ -30,16 +29,15 @@ exports.login = async (req, res) => {
       token,
     });
   } catch (error) {
-    console.log("error from login ==>", error);
+    console.error("error from login ==>", error);
     return res.status(500).json({ msg: error.message });
   }
 };
 
 exports.forgotPassword = async (req, res) => {
-  console.log("//====== forgotPassword func() got hit =====//");
+  console.log("forgotPassword api is now running...");
   const { uid, secretKey, newPassword, confirmPassword } = req.body;
 
-  console.log("body", req.body);
   if (!uid || !secretKey || !newPassword || !confirmPassword) {
     return res.status(400).json({ msg: "Please provide all required fields" });
   }
@@ -49,15 +47,12 @@ exports.forgotPassword = async (req, res) => {
   }
   try {
     const user = await User.findOne({ uid });
-    // console.log("user", user);
 
     if (!user) {
       return res.status(403).json({ msg: "UID not found" });
     }
     const secret =
       process.env.PASSWORD_RESET_SECRET || "DSS_PASSWORD_RESET_KEY";
-
-    // console.log("secret", secret);
 
     if (secretKey !== secret) {
       return res.status(403).json({ msg: "Invalid secret key" });
@@ -66,7 +61,6 @@ exports.forgotPassword = async (req, res) => {
     user.password = newPassword;
     await user.save();
 
-    // console.log("done", done);
     return res.status(200).json({ msg: "Password reset successful" });
   } catch (error) {
     console.error("error from forgotPassword ==>", error);

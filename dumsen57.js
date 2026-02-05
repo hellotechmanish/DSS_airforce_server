@@ -36,7 +36,7 @@ const baseMessages = [
 ];
 
 // Array of specific Node IDs
-const nodeIds = [1001,1002,1003];
+const nodeIds = [1001,1002,1003,1004,1005,1006,1007,1008,   1009,1010];   
 
 // Connect to the MQTT broker (no username/password)
 const client = mqtt.connect(brokerUrl, {

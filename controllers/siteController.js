@@ -6,7 +6,7 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 // =========================== Create Site ======================== //
 exports.createSite = async (req, res, next) => {
-  console.log("==== createSite function got hit () ====");
+  console.log("-- createSite function got hit () --");
   const { siteName, uid, location, pincode, country, state } = req.body;
 
   if (!siteName || !uid || !location || !pincode || !country || !state) {
@@ -39,7 +39,7 @@ exports.editSite = async (req, res, next) => {
     let site = await Site.findByIdAndUpdate(
       siteId,
       { siteName, uid, location, pincode, country, state },
-      { new: true }
+      { new: true },
     );
 
     if (site) {
