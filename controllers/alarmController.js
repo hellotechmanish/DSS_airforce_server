@@ -166,7 +166,7 @@ exports.getAlarmData = async (req, res, next) => {
       };
     }
 
-    // if (req.user.role === 2) {
+    // if (req.user.role === "user") {
     // }
 
     if (sensorName) {
@@ -282,7 +282,7 @@ exports.getAllAlarmDataForDownload = async (req, res) => {
       },
     };
 
-    if (req.user.role === 2) {
+    if (req.user.role === "user") {
       query = {
         deviceId: { $in: deviceId },
       };
@@ -335,7 +335,7 @@ exports.getAllAlarm = async (req, res, next) => {
 
   try {
     let alarm;
-    if (req.user.role === 2) {
+    if (req.user.role === "user") {
       alarm = await Alarm.find({
         deviceId: { $in: deviceId },
       })

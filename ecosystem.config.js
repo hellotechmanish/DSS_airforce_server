@@ -98,10 +98,10 @@ module.exports = {
     {
       name: "mern-server",
       script: "app.js",
-      instances: 6,
+      instances: 3,
       exec_mode: "cluster",
       env: {
-        PORT: 5008,
+        NODE_ENV: "production", //port :5009
       },
     },
   ],

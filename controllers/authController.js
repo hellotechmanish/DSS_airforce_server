@@ -1,5 +1,44 @@
 const User = require("../models/user");
 
+exports.signup = async (req, res) => {
+  console.log("Signup api is now running...");
+
+  const { fullName, uid, password, role } = req.body;
+
+  if (!fullName || !uid || !password) {
+    return res.status(400).json({ msg: "Please provide all required fields" });
+  }
+
+  try {
+    // Check if UID already exists
+    const existingUser = await User.findOne({ uid });
+
+    if (existingUser) {
+      return res.status(400).json({ msg: "UID already exists" });
+    }
+
+    // Create user
+    const user = await User.create({
+      fullName,
+      uid,
+      password,
+      role: role || "technician",
+    });
+
+    // Generate token
+    const token = user.getSignedToken();
+
+    res.status(201).json({
+      msg: "User created successfully",
+      user,
+      token,
+    });
+  } catch (error) {
+    console.error("Signup error ==>", error);
+    res.status(500).json({ msg: error.message });
+  }
+};
+
 // This is for login function
 
 exports.login = async (req, res) => {

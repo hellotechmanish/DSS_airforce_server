@@ -94,62 +94,95 @@ exports.deleteSiteFromUser = async (req, res, next) => {
 };
 
 // =========================== Number of Site ============================= //
-exports.numberOfSite = async (req, res, next) => {
-  // let user = req.user
-  // console.log("numberOfSite ===>", req.user.role)
-
+exports.numberOfSite = async (req, res) => {
   try {
-    let RespSite;
-    if (req.user.role === 0 || req.user.role === 1) {
-      RespSite = await Site.find({}).lean();
+    if (!req.user || !req.user.role) {
+      return res.status(401).json({ msg: "Unauthorized" });
     }
-    if (req.user.role === 2) {
-      RespSite = await Site.find({ userId: { $in: [req.user._id] } }).lean();
-      for (let item of RespSite) {
-        // console.log("==>", item._id.toString())
-        let deviceCount = await Device.countDocuments({
-          userId: { $in: [req.user._id] },
-        });
-        // console.log("device count ==>", deviceCount)
-        item.deviceCount = deviceCount;
-      }
-      return res.status(200).json({ msg: RespSite });
+
+    let siteFilter = {};
+
+    // Role-based filtering for sites
+    if (req.user.role === "admin" || req.user.role === "technician") {
+      siteFilter = {};
+    } else if (req.user.role === "user") {
+      siteFilter = { userId: req.user._id };
+    } else {
+      return res.status(403).json({ msg: "Invalid role" });
     }
-    for (let item of RespSite) {
-      // console.log("==>", item._id.toString())
-      let deviceCount = await Device.countDocuments({
-        siteId: item._id.toString(),
-      });
-      // console.log("device count ==>", deviceCount)
-      item.deviceCount = deviceCount;
+
+    const sites = await Site.find(siteFilter).lean();
+
+    if (!sites.length) {
+      return res.status(200).json({ msg: [] });
     }
-    // let deviceCount = await Device.find({})
-    return res.status(200).json({ msg: RespSite });
+
+    const siteIds = sites.map((site) => site._id);
+
+    // role-based device filter
+    let deviceMatch = {
+      siteId: { $in: siteIds },
+    };
+
+    // user → only assigned devices
+    if (req.user.role === "user") {
+      deviceMatch.userId = req.user._id;
+    }
+
+    const deviceCounts = await Device.aggregate([
+      {
+        $match: deviceMatch,
+      },
+      {
+        $group: {
+          _id: "$siteId",
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const countMap = {};
+
+    deviceCounts.forEach((item) => {
+      countMap[item._id.toString()] = item.count;
+    });
+
+    sites.forEach((site) => {
+      site.deviceCount = countMap[site._id.toString()] || 0;
+    });
+
+    return res.status(200).json({ msg: sites });
+
   } catch (error) {
-    console.log("error from numberOfSite =>", error.message);
+    console.error("numberOfSite error:", error);
+    return res.status(500).json({ msg: "Internal Server Error" });
   }
 };
 
 // ============================= Get site By UserId =============================== //
-exports.getSiteByUserId = async (req, res, next) => {
+exports.getSiteByUserId = async (req, res) => {
   const { userId } = req.params;
-  // console.log("== getSiteByUserId () ==")
-  // console.table(req.params)
+
   try {
-    let resp = await Site.find({ userId: { $in: [userId] } }).lean();
+    const objectUserId = new mongoose.Types.ObjectId(userId);
+
+    let resp = await Site.find({
+      userId: objectUserId,
+    }).lean();
+
     for (let item of resp) {
-      // console.log("==>", item._id.toString())
-      // let deviceCount = await Device.countDocuments({siteId: item._id.toString()})
-      let deviceCount = await Device.countDocuments({
-        userId: { $in: [userId] },
+      item.deviceCount = await Device.countDocuments({
+        siteId: item._id,
       });
-      // console.log("device count ==>", deviceCount)
-      item.deviceCount = deviceCount;
     }
-    return res.status(200).json({ msg: resp });
+
+    return res.status(200).json({
+      msg: resp,
+    });
   } catch (error) {
-    console.log("Error from getSiteByUserId ==>", error);
-    return res.status(500).json({ msg: error.message });
+    return res.status(500).json({
+      msg: error.message,
+    });
   }
 };
 
@@ -179,7 +212,7 @@ exports.checkSiteUid = async (req, res, next) => {
 exports.searchSite = async (req, res, next) => {
   const { searchQuery } = req.query;
   try {
-    if (req.user.role === 2) {
+    if (req.user.role === "user") {
       // console.log("searchSite role 2")
       RespSite = await Site.find({
         userId: { $in: [req.user._id] },

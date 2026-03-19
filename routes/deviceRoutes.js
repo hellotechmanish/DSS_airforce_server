@@ -12,7 +12,12 @@ routes.post("/deleteDevice", deviceController.deleteDevice);
 routes.post("/latestData", deviceController.latestdevicedata);
 routes.post("/latestDatabyDate", deviceController.latestdevicedataBydate);
 
+// 🔹 Single siteId device list
 routes.get("/getdeviceListbysiteId/:siteId", deviceController.getdeviceList);
+
+// 🔹 Multiple siteIds device list (NEW)
+routes.post("/getdeviceListbysiteIds", deviceController.getDeviceListBySiteIds);
+
 routes.post(
   "/getdeviceListbysiteIdanduserId",
   deviceController.getdeviceListByuserId,

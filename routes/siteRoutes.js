@@ -10,9 +10,9 @@ routes.post("/createSite", siteController.createSite);
 routes.post("/editSite", siteController.editSite);
 routes.post("/deleteSite", siteController.deleteSite);
 routes.get("/getnumberOfSite", siteController.numberOfSite);
-routes.get("/getSiteByUserId/:userId", siteController.getSiteByUserId);
+routes.get("/getSiteByUserId/:userId", siteController.getSiteByUserId); // testing pending
 routes.post("/checkSiteUid", siteController.checkSiteUid);
-routes.post("/deleteSitefromuser", siteController.deleteSiteFromUser);
+routes.post("/deleteSitefromuser", siteController.deleteSiteFromUser); //testing pending
 routes.get("/searchSite", siteController.searchSite);
 
 routes.get("/getAllSiteResistance", siteController.getAllSiteResistance);

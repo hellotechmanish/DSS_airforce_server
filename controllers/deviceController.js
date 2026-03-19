@@ -9,10 +9,12 @@ const fs = require("fs");
 const User = require("../models/user");
 var ObjectId = require("mongodb").ObjectId;
 const { exec } = require("child_process");
-require('dotenv').config();
+const mongoose = require("mongoose");
+require("dotenv").config();
 
 // Access the SAVE_INTERVAL_MINUTES variable
-const SAVE_INTERVAL_MINUTES = parseFloat(process.env.SAVE_INTERVAL_MINUTES) || 0.1;
+const SAVE_INTERVAL_MINUTES =
+  parseFloat(process.env.SAVE_INTERVAL_MINUTES) || 0.1;
 
 console.log(`Save Interval Minutes: ${SAVE_INTERVAL_MINUTES}`);
 
@@ -81,473 +83,241 @@ let initialstart = {}; // { '1401': true, '1402': true }
 let spdValue = {};
 
 client.on("message", async function (topic, message) {
-  console.log("Topic incoming inside GNLAN ====>", topic);
-  console.log("message from connected insdie GNLAN ==> ", message.toString());
+  console.log("Topic ====>", topic);
 
-  let parsedData;
-  let nodeId;
-  let DeviceExists = null;
-  console.log()
+  let parsedData,
+    nodeId,
+    DeviceExists = null;
+
+  // ✅ Parse once
+  let raw;
   try {
-    nodeId = JSON.parse(message.toString()).Node_Id;
-    DeviceExists = await Device.findOne({
-      nodeUid: `${JSON.parse(message.toString()).Node_Id}`,
-    });
-    // console.log(" DeviceExists ==>", DeviceExists);
+    raw = JSON.parse(message.toString());
+    nodeId = raw.Node_Id;
+    console.log("NodeId =>", nodeId);
+
+    DeviceExists = await Device.findOne({ nodeUid: nodeId });
   } catch (error) {
-    console.log(
-      "error from DeviceExists Device Not found  ===>",
-      error.message
-    );
+    console.log("Parse / Device error =>", error.message);
+    return;
   }
 
-  if (DeviceExists) {
-    console.log(
-      "********************************  Inside If device Exist ********************************"
-    );
+  if (!DeviceExists) return;
+
+  console.log("✅ Device Found");
+
+  // ✅ Decode base64
+  try {
+    parsedData = JSON.parse(Buffer.from(raw.data, "base64").toString("utf8"));
+  } catch (e) {
+    console.log("Decode error =>", e.message);
+    return;
+  }
+
+  console.log("Decoded Data =>", parsedData);
+
+  // ================= INITIAL START =================
+  if (parsedData.initialStart) {
+    initialstart[nodeId] = true;
+  }
+
+  if (!initialstart[nodeId]) return;
+
+  // ================= INIT OBJECT =================
+  if (!DataObject[nodeId]) {
+    DataObject[nodeId] = {
+      RES: { ...RESMsg, DATASTREAMS: [] },
+      NER: { ...NERMsg, DATASTREAMS: [] },
+      SPD: { ...SPDMsg, DATASTREAMS: [] },
+      VMR: { ...VMRMsg, DATASTREAMS: [] },
+      TEMP: { ...TEMPMsg, DATASTREAMS: [] },
+      HUM: { ...HUMMsg, DATASTREAMS: [] },
+    };
+  }
+
+  // ================= TEMP + HUM =================
+  if (parsedData.Temp) temp = parsedData.Temp;
+  if (parsedData.Hum) hum = parsedData.Hum;
+
+  // ================= KEY SAFE =================
+  const keys = Object.keys(parsedData).filter(
+    (k) => !["start", "end", "initialStart", "alarm"].includes(k),
+  );
+
+  const key = keys[0];
+  const type = key?.split("_")[0];
+
+  // ================= COMMON PUSH =================
+  const pushData = (type, value, deviceKey = key) => {
+    DataObject[nodeId][type].DATASTREAMS.push({
+      deviceNumber: deviceKey,
+      value,
+    });
+  };
+
+  // ================= RES =================
+  if (
+    type === "RES" &&
+    DataObject[nodeId].RES.DATASTREAMS.length + 1 <= DeviceExists.resSensors
+  ) {
+    pushData("RES", parsedData[key].toFixed(2));
+  }
+
+  // ================= NER =================
+  if (
+    type === "NER" &&
+    DataObject[nodeId].NER.DATASTREAMS.length + 1 <= DeviceExists.nerSensors
+  ) {
+    pushData("NER", parsedData[key].toFixed(2));
+  }
+
+  // ================= SPD =================
+  if (
+    type === "SPD" &&
+    DataObject[nodeId].SPD.DATASTREAMS.length + 1 <= DeviceExists.spdSensors
+  ) {
+    let latestSurge = await DeviceMsg.find({
+      deviceId: DeviceExists._id,
+      "msg.DEVICE_TYPE": "SPD",
+    })
+      .sort({ _id: -1 })
+      .limit(1)
+      .lean();
+
+    let value = parsedData[key] / 100;
+
+    if (latestSurge.length > 0) {
+      const oldValue =
+        latestSurge[0].msg.DATASTREAMS.find((i) => i.deviceNumber === key)
+          ?.value || 0;
+
+      if (oldValue === value) {
+        pushData("SPD", 0);
+      } else if (spdValue[nodeId] === value) {
+        pushData("SPD", 0);
+      } else {
+        spdValue[nodeId] = value;
+        pushData("SPD", value);
+      }
+    } else {
+      pushData("SPD", value);
+    }
+  }
+
+  // ================= TEMP =================
+  if (parsedData.Temp) {
+    pushData("TEMP", parsedData.Temp.toFixed(2), "Temp");
+  }
+
+  // ================= HUM =================
+  if (parsedData.Hum) {
+    pushData("HUM", parsedData.Hum.toFixed(2), "Hum");
+  }
+
+  // ================= VMR =================
+  if (
+    type === "VA" &&
+    DataObject[nodeId].VMR.DATASTREAMS.length + 1 <= DeviceExists.vmrSensors
+  ) {
+    delete parsedData.start;
+    delete parsedData.alarm;
+
+    const values = Object.values(parsedData);
+
+    const arr = [
+      { phaseNumber: "r", value: values[0] / 100 },
+      { phaseNumber: "y", value: values[1] / 100 },
+      { phaseNumber: "b", value: values[2] / 100 },
+      { phaseNumber: "ry", value: values[3] / 100 },
+      { phaseNumber: "yb", value: values[4] / 100 },
+      { phaseNumber: "rb", value: values[5] / 100 },
+    ];
+
+    pushData("VMR", arr, key.split("_")[1]);
+  }
+
+  // ================= END =================
+  if (parsedData.end && DataObject[nodeId]) {
     try {
-      let messageString = message.toString();
-      let parsedData1 = JSON.parse(messageString);
-      // console.log("Under Try Block Data parsed Data ===> : ", messageString.length);
-      parsedData = JSON.parse(
-        Buffer.from(parsedData1.data, "base64").toString("utf8")
-      );
-      console.log("base64 decode ===>", parsedData);
-    } catch (e) {
-      console.log("inside JSON PARSe Catch", e);
-      return;
+      await Promise.all([
+        saveLatestData(
+          DataObject[nodeId].RES,
+          DeviceExists._id,
+          "ResValues",
+          temp,
+          hum,
+        ),
+        saveLatestData(
+          DataObject[nodeId].NER,
+          DeviceExists._id,
+          "NerValues",
+          temp,
+          hum,
+        ),
+        saveLatestData(
+          DataObject[nodeId].SPD,
+          DeviceExists._id,
+          "SpdValues",
+          temp,
+          hum,
+        ),
+        saveLatestData(
+          DataObject[nodeId].VMR,
+          DeviceExists._id,
+          "VmrValues",
+          temp,
+          hum,
+        ),
+        saveLatestData(
+          DataObject[nodeId].HUM,
+          DeviceExists._id,
+          "HumValues",
+          temp,
+          hum,
+        ),
+        saveLatestData(
+          DataObject[nodeId].TEMP,
+          DeviceExists._id,
+          "TempValues",
+          temp,
+          hum,
+        ),
+      ]);
+
+      await Promise.all([
+        compareThresholdValue(
+          DataObject[nodeId].RES,
+          DeviceExists._id,
+          "ResValues",
+          DeviceExists,
+        ),
+        compareThresholdValue(
+          DataObject[nodeId].NER,
+          DeviceExists._id,
+          "NerValues",
+          DeviceExists,
+        ),
+        compareThresholdValue(
+          DataObject[nodeId].SPD,
+          DeviceExists._id,
+          "SpdValues",
+          DeviceExists,
+        ),
+        compareThresholdValue(
+          DataObject[nodeId].VMR,
+          DeviceExists._id,
+          "VmrValues",
+          DeviceExists,
+        ),
+      ]);
+
+      console.log("✅ Data saved + threshold checked");
+    } catch (err) {
+      console.log("DB error =>", err.message);
     }
 
-    console.log("initialStart ++>", initialstart);
-    if (initialstart[`${nodeId}`]) {
-      console.log("initialStart if ==>", initialstart);
-      if (parsedData["start"]) {
-        if (parsedData["Temp"]) {
-          console.log(
-            "temperature and Humidity found  ===>",
-            parsedData["Temp"],
-            parsedData["Hum"]
-          );
-          temp = parsedData["Temp"];
-          hum = parsedData["Hum"];
-        }
-
-        console.log(
-          "DATAOBJECT FROM DeviceExists before adding nodeKey ==>",
-          DataObject
-        );
-        if (!DataObject[`${DeviceExists.nodeUid}`]) {
-          DataObject[`${DeviceExists.nodeUid}`] = {};
-
-          DataObject[`${DeviceExists.nodeUid}`]["RES"] = {
-            ...RESMsg,
-            DATASTREAMS: [...RESMsg.DATASTREAMS],
-          };
-
-          DataObject[`${DeviceExists.nodeUid}`]["NER"] = {
-            ...NERMsg,
-            DATASTREAMS: [...NERMsg.DATASTREAMS],
-          };
-
-          DataObject[`${DeviceExists.nodeUid}`]["SPD"] = {
-            ...SPDMsg,
-            DATASTREAMS: [...SPDMsg.DATASTREAMS],
-          };
-
-          DataObject[`${DeviceExists.nodeUid}`]["VMR"] = {
-            ...VMRMsg,
-            DATASTREAMS: [...VMRMsg.DATASTREAMS],
-          };
-
-          DataObject[`${DeviceExists.nodeUid}`]["TEMP"] = {
-            ...TEMPMsg,
-            DATASTREAMS: [...TEMPMsg.DATASTREAMS],
-          };
-
-          DataObject[`${DeviceExists.nodeUid}`]["HUM"] = {
-            ...HUMMsg,
-            DATASTREAMS: [...TEMPMsg.DATASTREAMS],
-          };
-        }
-        console.log(
-          "DATAOBJECT FROM DeviceExists parsedData START ==>",
-          DataObject
-        );
-
-        
-        console.log("Inside if start is present");
-        console.log("Parse Data is ", parsedData);
-        console.log(
-          "Saving RES VALUE420 ==>",
-          `${DeviceExists.nodeUid}`,
-          nodeId
-        );
-
-        if (
-          Object.keys(parsedData)[0].split("_")[0] === "RES" &&
-          DataObject[`${DeviceExists.nodeUid}`]["RES"]["DATASTREAMS"].length +
-            1 <=
-            DeviceExists.resSensors
-        ) {
-          console.log(
-            "RESMsg  ===>",
-            DataObject[`${DeviceExists.nodeUid}`]["RES"]["DATASTREAMS"].length,
-            DeviceExists.resSensors
-          );
-          // && ((DataObject[`${DeviceExists.nodeUid}`]['RES']["DATASTREAMS"].length + 1) <= DeviceExists.resSensors)
-
-          let key = Object.keys(parsedData)[0]; //fetched the key at first index
-          let msgObj = {};
-          msgObj["deviceNumber"] = key;
-          msgObj["value"] = (parsedData[key]).toFixed(2);
-          console.log(
-            `NOdeID = ${nodeId} and RES VAlue = ${parsedData[key]}`
-          );
-
-          if (DataObject[`${DeviceExists.nodeUid}`]["RES"]) {
-            console.log(
-              "Saving RES VALUE ==>",
-              `${DeviceExists.nodeUid}`,
-              nodeId,
-              msgObj
-            );
-            DataObject[`${DeviceExists.nodeUid}`]["RES"]["DATASTREAMS"].push(
-              msgObj
-            );
-          }
-        }
-
-        if (
-          Object.keys(parsedData)[0].split("_")[0] === "NER" &&
-          DataObject[`${DeviceExists.nodeUid}`]["NER"]["DATASTREAMS"].length +
-            1 <=
-            DeviceExists.nerSensors
-        ) {
-          console.log(
-            "NERMsg  ===>",
-            DataObject[`${DeviceExists.nodeUid}`]["NER"]["DATASTREAMS"].length,
-            DeviceExists.nerSensors
-          );
-          // console.log(`this is the ${Object.keys(parsedData)[0].split("_")[0]} value`)
-          let key = Object.keys(parsedData)[0]; //fetched the key at first index
-          let msgObj = {};
-          msgObj["deviceNumber"] = key;
-          msgObj["value"] = (parsedData[key]).toFixed(2);
-
-          if (DataObject[`${DeviceExists.nodeUid}`]["NER"]) {
-            DataObject[`${DeviceExists.nodeUid}`]["NER"]["DATASTREAMS"].push(
-              msgObj
-            );
-          }
-        }
-
-        if (
-          Object.keys(parsedData)[0].split("_")[0] === "SPD" &&
-          DataObject[`${DeviceExists.nodeUid}`]["SPD"]["DATASTREAMS"].length +
-            1 <=
-            DeviceExists.spdSensors
-        ) {
-          console.log(
-            "SPDMsg  ===>",
-            DataObject[`${DeviceExists.nodeUid}`]["SPD"]["DATASTREAMS"].length,
-            DeviceExists.spdSensors
-          );
-
-          // console.log(`this is the ${Object.keys(parsedData)[0].split("_")[0]} value`)
-          // get data from db
-          let latestSurge = await DeviceMsg.find({
-            deviceId: DeviceExists._id,
-            "msg.DEVICE_TYPE": "SPD",
-          })
-            .sort({ _id: -1 })
-            .limit(1)
-            .lean();
-          console.log("Latest surge ==>", latestSurge);
-          let key = Object.keys(parsedData)[0]; //fetched the key at first index
-          console.log("key Surge ==>", key);
-
-          if (latestSurge.length > 0) {
-            console.log(
-              "compare these two ==>",
-              latestSurge[0].msg.DATASTREAMS.filter(
-                (item) => item.deviceNumber === key
-              ),
-              parsedData[key] / 100
-            );
-            if (
-              latestSurge[0].msg.DATASTREAMS.filter(
-                (item) => item.deviceNumber === key
-              )[0]?.value ||
-              0 === parsedData[key] / 100
-            ) {
-              console.log("==== surge Value is Same as DB ====");
-              let msgObj = {};
-              msgObj["deviceNumber"] = key;
-              msgObj["value"] = 0;
-              // SPDMsg.DATASTREAMS.push(msgObj)
-              DataObject[`${DeviceExists.nodeUid}`]["SPD"]["DATASTREAMS"].push(
-                msgObj
-              );
-            } else {
-              console.log(
-                "==== surge Value is not Same as DB Add new Data ===="
-              );
-
-              console.log(
-                "spdValue object is same as parsed DATA",
-                spdValue[`${DeviceExists.nodeUid}`],
-                parsedData[key] / 100
-              );
-              if (
-                spdValue[`${DeviceExists.nodeUid}`] ===
-                parsedData[key] / 100
-              ) {
-                let msgObj = {};
-                msgObj["deviceNumber"] = key;
-                msgObj["value"] = 0;
-                // SPDMsg.DATASTREAMS.push(msgObj)
-                DataObject[`${DeviceExists.nodeUid}`]["SPD"][
-                  "DATASTREAMS"
-                ].push(msgObj);
-              } else {
-                let msgObj = {};
-                msgObj["deviceNumber"] = key;
-                msgObj["value"] = parsedData[key] / 100;
-                // SPDMsg.DATASTREAMS.push(msgObj)
-                spdValue[`${DeviceExists.nodeUid}`] = parsedData[key] / 100;
-                DataObject[`${DeviceExists.nodeUid}`]["SPD"][
-                  "DATASTREAMS"
-                ].push(msgObj);
-              }
-            }
-          } else {
-            console.log("==== first Time surge Value ====");
-            let msgObj = {};
-            msgObj["deviceNumber"] = key;
-            msgObj["value"] = parsedData[key] / 100;
-            // SPDMsg.DATASTREAMS.push(msgObj)
-            DataObject[`${DeviceExists.nodeUid}`]["SPD"]["DATASTREAMS"].push(
-              msgObj
-            );
-          }
-        }
-
-        if (Object.keys(parsedData)[0] === "Temp") {
-          console.log(
-            "Temp  ===>",
-            DataObject[`${DeviceExists.nodeUid}`]["TEMP"]["DATASTREAMS"]
-          );
-          let key = Object.keys(parsedData)[0]; //fetched the key at first index
-          let msgObj = {};
-          msgObj["deviceNumber"] = key;
-          msgObj["value"] = parsedData[key].toFixed(2);
-
-          if (DataObject[`${DeviceExists.nodeUid}`]["TEMP"]) {
-            DataObject[`${DeviceExists.nodeUid}`]["TEMP"]["DATASTREAMS"].push(
-              msgObj
-            );
-          }
-        }
-
-        console.log(
-          "Logs is ",
-          Object.keys(parsedData)[1] === "Hum",
-          Object.keys(parsedData)[1]
-        );
-
-        if (Object.keys(parsedData)[1] === "Hum") {
-          console.log(
-            "Hum  ===>",
-            DataObject[`${DeviceExists.nodeUid}`]["HUM"]["DATASTREAMS"]
-          );
-          let key = Object.keys(parsedData)[1]; //fetched the key at first index
-          let msgObj = {};
-          msgObj["deviceNumber"] = key;
-          msgObj["value"] = parsedData[key].toFixed(2);
-
-          if (DataObject[`${DeviceExists.nodeUid}`]["HUM"]) {
-            DataObject[`${DeviceExists.nodeUid}`]["HUM"]["DATASTREAMS"].push(
-              msgObj
-            );
-          }
-        }
-
-        if (
-          Object.keys(parsedData)[0].split("_")[0] === "VA" &&
-          DataObject[`${DeviceExists.nodeUid}`]["VMR"]["DATASTREAMS"].length +
-            1 <=
-            DeviceExists.vmrSensors
-        ) {
-          console.log(
-            "VMRMsg  ===>",
-            DataObject[`${DeviceExists.nodeUid}`]["VMR"]["DATASTREAMS"].length,
-            DeviceExists.vmrSensors
-          );
-          // console.log(`this is the ${Object.keys(parsedData)[0]} value`)
-          // delete parsedData.Node_Id;
-          delete parsedData.start;
-          delete parsedData.alarm;
-          let msgObj = {};
-          let arr = [
-            {
-              phaseNumber: "r",
-              value: Object.values(parsedData)[0] / 100,
-            },
-            {
-              phaseNumber: "y",
-              value: Object.values(parsedData)[1] / 100,
-            },
-            {
-              phaseNumber: "b",
-              value: Object.values(parsedData)[2] / 100,
-            },
-            {
-              phaseNumber: "ry",
-              value: Object.values(parsedData)[3] / 100,
-            },
-            {
-              phaseNumber: "yb",
-              value: Object.values(parsedData)[4] / 100,
-            },
-            {
-              phaseNumber: "rb",
-              value: Object.values(parsedData)[5] / 100,
-            },
-          ];
-          msgObj["deviceNumber"] = Object.keys(parsedData)[0].split("_")[1];
-          msgObj["value"] = arr;
-          // VMRMsg.DATASTREAMS.push(msgObj)
-          if (DataObject[`${DeviceExists.nodeUid}`]["VMR"]) {
-            DataObject[`${DeviceExists.nodeUid}`]["VMR"]["DATASTREAMS"].push(
-              msgObj
-            );
-          }
-        }
-
-        console.log(
-          "DataObject: ===============================> ",
-          DataObject
-        );
-      }
-
-      if (parsedData["end"]) {
-        console.log("=== END ARRAY ===", parsedData, nodeId);
-        console.log(
-          "======== SINGLE DEVICE DATA TO DATABASE ==========",
-          DataObject[`${nodeId}`]
-        );
-
-        if (DataObject[`${nodeId}`]) {
-          try {
-            console.log("dataObject has this nodeId");
-            console.table(DataObject[`${nodeId}`]);
-            // save the data to db
-            try {
-              if (
-                DataObject[`${nodeId}`]["RES"] &&
-                DataObject[`${nodeId}`]["NER"] &&
-                DataObject[`${nodeId}`]["SPD"] &&
-                DataObject[`${nodeId}`]["VMR"]
-              ) {
-                Promise.all([
-                  saveLatestData(
-                    DataObject[`${nodeId}`]["RES"],
-                    DeviceExists._id,
-                    "ResValues",
-                    temp,
-                    hum
-                  ),
-                  saveLatestData(
-                    DataObject[`${nodeId}`]["NER"],
-                    DeviceExists._id,
-                    "NerValues",
-                    temp,
-                    hum
-                  ),
-                  saveLatestData(
-                    DataObject[`${nodeId}`]["SPD"],
-                    DeviceExists._id,
-                    "SpdValues",
-                    temp,
-                    hum
-                  ),
-                  saveLatestData(
-                    DataObject[`${nodeId}`]["VMR"],
-                    DeviceExists._id,
-                    "VmrValues",
-                    temp,
-                    hum
-                  ),
-
-                  saveLatestData(
-                    DataObject[`${nodeId}`]["HUM"],
-                    DeviceExists._id,
-                    "HumValues",
-                    temp,
-                    hum
-                  ),
-
-                  saveLatestData(
-                    DataObject[`${nodeId}`]["TEMP"],
-                    DeviceExists._id,
-                    "TempValues",
-                    temp,
-                    hum
-                  ),
-                ]).then(() => {
-                  console.log("=== Data saved in db ===");
-                });
-
-                Promise.all([
-                  compareThresholdValue(
-                    DataObject[`${nodeId}`]["RES"],
-                    DeviceExists._id,
-                    "ResValues",
-                    DeviceExists
-                  ),
-                  compareThresholdValue(
-                    DataObject[`${nodeId}`]["NER"],
-                    DeviceExists._id,
-                    "NerValues",
-                    DeviceExists
-                  ),
-                  compareThresholdValue(
-                    DataObject[`${nodeId}`]["SPD"],
-                    DeviceExists._id,
-                    "SpdValues",
-                    DeviceExists
-                  ),
-                  compareThresholdValue(
-                    DataObject[`${nodeId}`]["VMR"],
-                    DeviceExists._id,
-                    "VmrValues",
-                    DeviceExists
-                  ),
-                ]).then(() => {
-                  console.log("=== Threshold comparision done ===");
-                });
-              }
-            } catch (err) {
-              console.log("error from saving to DB ==>", err.message);
-            }
-          } catch (err) {
-            console.log("error in table");
-          }
-          delete DataObject[`${nodeId}`];
-          delete initialstart[`${nodeId}`];
-        } else {
-          console.log("Device NOt FOund with nodeID", nodeId);
-        }
-
-        console.log("DATAOBJECT After END ====>", DataObject);
-      }
-    }
-    //
-
-    // ========== Initialise the data entry ========= //
-    if (parsedData["initialStart"]) {
-      initialstart[`${nodeId}`] = true;
-    }
+    delete DataObject[nodeId];
+    delete initialstart[nodeId];
   }
 });
 
@@ -638,7 +408,6 @@ client.on("message", async function (topic, message) {
 // }
 //skp data using counter
 
-
 // Map to track the count for each nodeId and sensor
 // Map to track the count for each nodeId and sensor
 // const saveCounters = new Map();
@@ -713,70 +482,79 @@ client.on("message", async function (topic, message) {
 global.lastSaveTimes = global.lastSaveTimes || new Map();
 
 async function saveLatestData(structuredMsg, deviceId, parameterValue) {
-   // const SAVE_INTERVAL_MINUTES = 0.1;
-    const DEVICE_TYPE = structuredMsg.DEVICE_TYPE || 'unknown';
-    const now = new Date();
-    
-    // Standardize device ID
-    const storageDeviceId = deviceId.toString();
+  // const SAVE_INTERVAL_MINUTES = 0.1;
+  const DEVICE_TYPE = structuredMsg.DEVICE_TYPE || "unknown";
+  const now = new Date();
 
-    console.log(`\n[${DEVICE_TYPE}] Processing ${parameterValue} for device ${storageDeviceId} at ${now.toISOString()}`);
+  // Standardize device ID
+  const storageDeviceId = deviceId.toString();
 
-    // Initialize last save time if not exists
-    if (!global.lastSaveTimes.has(storageDeviceId)) {
-        global.lastSaveTimes.set(storageDeviceId, new Map());
-        console.log(`[${DEVICE_TYPE}] Initialized timers for device ${storageDeviceId}`);
-    }
+  console.log(
+    `\n[${DEVICE_TYPE}] Processing ${parameterValue} for device ${storageDeviceId} at ${now.toISOString()}`,
+  );
 
-    const deviceTimers = global.lastSaveTimes.get(storageDeviceId);
+  // Initialize last save time if not exists
+  if (!global.lastSaveTimes.has(storageDeviceId)) {
+    global.lastSaveTimes.set(storageDeviceId, new Map());
+    console.log(
+      `[${DEVICE_TYPE}] Initialized timers for device ${storageDeviceId}`,
+    );
+  }
 
-    // Get last save time or initialize to epoch
-    const lastSave = deviceTimers.get(parameterValue) || new Date(0);
-    const minutesSinceLastSave = (now - lastSave) / (1000 * 60);
+  const deviceTimers = global.lastSaveTimes.get(storageDeviceId);
 
-    console.log(`[${DEVICE_TYPE}] Last saved ${Math.round(minutesSinceLastSave)} minutes ago`);
+  // Get last save time or initialize to epoch
+  const lastSave = deviceTimers.get(parameterValue) || new Date(0);
+  const minutesSinceLastSave = (now - lastSave) / (1000 * 60);
 
-    // Check if enough time has passed
-    if (minutesSinceLastSave < SAVE_INTERVAL_MINUTES) {
-        const minutesRemaining = Math.ceil(SAVE_INTERVAL_MINUTES - minutesSinceLastSave);
-        console.log(`[${DEVICE_TYPE}] Next save in ${minutesRemaining} minutes`);
-        return { saved: false, nextSaveIn: minutesRemaining };
-    }
+  console.log(
+    `[${DEVICE_TYPE}] Last saved ${Math.round(minutesSinceLastSave)} minutes ago`,
+  );
 
-    try {
-        // Save the data
-        const timestamp = moment();
-        const msg = new DeviceMsg({
-            deviceId: storageDeviceId,
-            msg: structuredMsg,
-            date: timestamp.format("YYYY-MM-DD"),
-            time: timestamp.format("HH:mm:ss"),
-            dateAndTime: timestamp.format()
-        });
+  // Check if enough time has passed
+  if (minutesSinceLastSave < SAVE_INTERVAL_MINUTES) {
+    const minutesRemaining = Math.ceil(
+      SAVE_INTERVAL_MINUTES - minutesSinceLastSave,
+    );
+    console.log(`[${DEVICE_TYPE}] Next save in ${minutesRemaining} minutes`);
+    return { saved: false, nextSaveIn: minutesRemaining };
+  }
 
-        await msg.save();
-        
-        await Device.findByIdAndUpdate(
-            storageDeviceId,
-            { 
-                $set: {
-                    [parameterValue]: structuredMsg,
-                    lastUpdated: now
-                }
-            },
-            { new: true }
-        );
+  try {
+    // Save the data
+    const timestamp = moment();
+    const msg = new DeviceMsg({
+      deviceId: storageDeviceId,
+      msg: structuredMsg,
+      date: timestamp.format("YYYY-MM-DD"),
+      time: timestamp.format("HH:mm:ss"),
+      dateAndTime: timestamp.format(),
+    });
 
-        // Update last save time
-        deviceTimers.set(parameterValue, now);
-        console.log(`[${DEVICE_TYPE}] Data saved successfully at ${now.toISOString()}`);
-        
-        return { saved: true };
+    await msg.save();
 
-    } catch (error) {
-        console.error(`[${DEVICE_TYPE}] Save failed:`, error.message);
-        return { saved: false, error: error.message };
-    }
+    await Device.findByIdAndUpdate(
+      storageDeviceId,
+      {
+        $set: {
+          [parameterValue]: structuredMsg,
+          lastUpdated: now,
+        },
+      },
+      { new: true },
+    );
+
+    // Update last save time
+    deviceTimers.set(parameterValue, now);
+    console.log(
+      `[${DEVICE_TYPE}] Data saved successfully at ${now.toISOString()}`,
+    );
+
+    return { saved: true };
+  } catch (error) {
+    console.error(`[${DEVICE_TYPE}] Save failed:`, error.message);
+    return { saved: false, error: error.message };
+  }
 }
 // end of skp program
 // =============================== Compare latest data from DB ============================= //
@@ -784,7 +562,7 @@ async function compareThresholdValue(
   structuredMsg,
   deviceId,
   parameterValue,
-  DeviceExists
+  DeviceExists,
 ) {
   if (
     !DeviceExists.ResValues ||
@@ -1127,76 +905,34 @@ exports.deleteDevice = async (req, res, next) => {
 };
 
 // ========================= Today latest device Graph data ======================== //
-exports.latestdevicedata = async (req, res, next) => {
+exports.latestdevicedata = async (req, res) => {
   const { sensorName, deviceNumber, deviceId, startDate, endDate } = req.body;
-  // console.table(req.body)
 
   if (!sensorName || !deviceId || !startDate || !endDate) {
-    return res.status(400).json({ msg: "Please! provide all required data" });
+    return res.status(400).json({ msg: "Please provide all required data" });
   }
 
-  if (sensorName === "VMR") {
-    console.log("== Inside VMR condition ==");
-    try {
-      let resp = await DeviceMsg.aggregate([
-        {
-          $match: {
-            deviceId: ObjectId(deviceId),
-            "msg.DEVICE_TYPE": sensorName,
-            date: {
-              $gte: startDate,
-              $lte: endDate,
-            },
-          },
-        },
-        {
-          $unwind: "$msg.DATASTREAMS",
-        },
-        {
-          $match: {
-            deviceId: ObjectId(deviceId),
-            "msg.DEVICE_TYPE": sensorName,
-            "msg.DATASTREAMS.deviceNumber": deviceNumber,
-            date: {
-              $gte: startDate,
-              $lte: endDate,
-            },
-          },
-        },
-        {
-          $unwind: "$msg.DATASTREAMS.value",
-        },
-        {
-          $addFields: {
-            phaseNumber: "$msg.DATASTREAMS.value.phaseNumber",
-            value: "$msg.DATASTREAMS.value.value",
-          },
-        },
-      ]);
-
-      return res.status(200).json({ msg: resp });
-    } catch (error) {
-      console.log("Error from VMR ==>", error);
-    }
+  if (!mongoose.Types.ObjectId.isValid(deviceId)) {
+    return res.status(400).json({ msg: "Invalid deviceId" });
   }
+
   try {
     let resp = await DeviceMsg.aggregate([
       {
         $match: {
-          deviceId: ObjectId(deviceId),
+          deviceId: new mongoose.Types.ObjectId(deviceId),
           "msg.DEVICE_TYPE": sensorName,
-          date: startDate,
-          // date: {
-          //   $gte: startDate,
-          //   $lte: "",
-          // },
+          date: {
+            $gte: startDate,
+            $lte: endDate,
+          },
         },
       },
     ]);
-    // console.log("RES Response LatestDeviceData", resp.length)
+
     return res.status(200).json({ msg: resp });
   } catch (error) {
-    console.log("error from latest devicedata ==>", error);
+    console.log("error:", error);
     return res.status(500).json({ msg: error.message });
   }
 };
@@ -1341,46 +1077,81 @@ exports.latestdevicedataBydate = async (req, res, next) => {
 };
 
 // ========================= Device Data acc. to siteId ============================= //
-exports.getdeviceList = async (req, res, next) => {
+exports.getdeviceList = async (req, res) => {
   const { siteId } = req.params;
-  // console.log("getdeviceList ====>", siteId)
 
   if (!siteId) {
-    return res.status(400).json({ msg: "Please! provide all required data" });
-  }
-
-  if (siteId === "null" || siteId === "undefined") {
-    return res.status(400).json({ msg: "siteId not found" });
+    return res.status(400).json({ msg: "Please provide siteId" });
   }
 
   try {
-    let deviceList = await Device.find(
-      { siteId },
-      { deviceName: 1, _id: 1 }
-    ).lean();
+    // convert to ObjectId
+    const siteIds = siteId
+      .split(",")
+      .map((id) => new mongoose.Types.ObjectId(id));
 
-    if (req.user.role === 2) {
-      let userDeviceList = await Device.find(
-        {
-          siteId: siteId,
-          userId: { $in: [req.user._id] },
-        },
-        { deviceName: 1, _id: 1 }
-      ).lean();
-      return res.status(200).json({ msg: userDeviceList });
+    let deviceQuery = {
+      siteId: { $in: siteIds },
+    };
+
+    // user → only assigned devices
+    if (req.user.role === "user") {
+      deviceQuery.userId = { $in: [req.user._id] };
     }
+
+    const deviceList = await Device.find(deviceQuery, {
+      deviceName: 1,
+      _id: 1,
+      siteId: 1,
+    }).lean();
 
     return res.status(200).json({ msg: deviceList });
   } catch (error) {
     console.log("error from getdeviceList =>", error);
-    return res.status(500).json({ msg: error.message });
+
+    return res.status(500).json({
+      msg: error.message,
+    });
+  }
+};
+
+exports.getDeviceListBySiteIds = async (req, res) => {
+  const { siteIds } = req.body;
+
+  if (!siteIds || !Array.isArray(siteIds) || siteIds.length === 0) {
+    return res.status(400).json({ msg: "siteIds required" });
+  }
+
+  try {
+    let query = {
+      siteId: { $in: siteIds },
+    };
+
+    if (req.user.role === "user") {
+      query.userId = req.user._id;
+    }
+
+    const deviceList = await Device.find(query, {
+      deviceName: 1,
+      _id: 1,
+      siteId: 1,
+    }).lean();
+
+    return res.status(200).json({
+      msg: deviceList,
+    });
+  } catch (error) {
+    console.log("error =>", error);
+
+    return res.status(500).json({
+      msg: error.message,
+    });
   }
 };
 
 // ========================= Device Data acc. to siteId and userId ============================= //
 exports.getdeviceListByuserId = async (req, res, next) => {
   const { siteId, userId } = req.body;
-  // console.log("getdeviceList ====>", siteId)
 
   if (!siteId || !userId) {
     return res.status(400).json({ msg: "Please! provide all required data" });
@@ -1391,10 +1162,18 @@ exports.getdeviceListByuserId = async (req, res, next) => {
   }
 
   try {
-    let userDeviceList = await Device.find({
-      siteId: siteId,
-      userId: { $in: [userId] },
-    }).lean();
+    let query = { siteId };
+
+    // 👇 user role ke liye hi filter lagao
+    if (req.user.role === "user") {
+      query.userId = { $in: [req.user._id] };
+    }
+
+    const userDeviceList = await Device.find(query).lean();
+
+    console.log("query", query);
+    console.log("devices", userDeviceList);
+
     return res.status(200).json({ msg: userDeviceList });
   } catch (error) {
     console.log("error from getdeviceListByuserId =>", error);
@@ -1479,7 +1258,7 @@ exports.getCsv = async (req, res, next) => {
   console.log("==== generateCSV ====");
   console.log("==== generateCSV ====");
   console.log("==== ++++++++++ ====");
-   console.table(req.body);
+  console.table(req.body);
 
   if (!sensorName || !deviceId || !deviceNumber || !startDate || !endDate) {
     return res.status(400).json({ msg: "Please! provide all required data" });
@@ -1588,7 +1367,6 @@ exports.getCsv = async (req, res, next) => {
         header: Headers,
       });
 
-      
       writer.writeRecords(records).then(() => {
         console.log("Done!");
         return res.status(200).json({ msg: "CSV generated successfully" });
@@ -1614,9 +1392,9 @@ exports.getCsv = async (req, res, next) => {
                 deviceId: ObjectId(deviceId),
                 "msg.DEVICE_TYPE": sensorName,
                 createdAt: {
-              $gte: moment(startDate).startOf("day").toDate(),
-              $lte: moment(endDate).endOf("day").toDate(),
-            },
+                  $gte: moment(startDate).startOf("day").toDate(),
+                  $lte: moment(endDate).endOf("day").toDate(),
+                },
               },
             },
             {
@@ -1658,7 +1436,7 @@ exports.getCsv = async (req, res, next) => {
           console.log("deviceDetails: ", deviceDetails);
         } catch (error) {
           console.log(
-            `while generating report the value ${item} not found in db`
+            `while generating report the value ${item} not found in db`,
           );
         }
       }
@@ -1701,7 +1479,7 @@ exports.getCsv = async (req, res, next) => {
 
         return res.status(200).json({ msg: "CSV GENERATED" });
       });
-      
+
       // return res.status(200).json({msg: records})
 
       // res.setHeader(
