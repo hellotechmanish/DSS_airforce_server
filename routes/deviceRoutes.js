@@ -1,12 +1,15 @@
 const express = require("express");
 const deviceController = require("../controllers/deviceController");
+const allowRoles = require("../middleware/allowRoles");
 
 const routes = express.Router();
-
+const ADMIN = ["admin"];
+const ADMIN_TECH = ["admin", "technician"];
+const ALL = ["admin", "technician", "user"];
 /* 🔐 Already protected by app.js */
 
-routes.post("/createDevice", deviceController.createDevice);
-routes.post("/editDevice", deviceController.editDevice);
+routes.post("/createDevice", allowRoles(ADMIN), deviceController.createDevice);
+routes.post("/editDevice", allowRoles(ADMIN), deviceController.editDevice);
 routes.post("/deleteDevice", deviceController.deleteDevice);
 
 routes.post("/latestData", deviceController.latestdevicedata);
@@ -35,6 +38,10 @@ routes.get("/getdevicebyuserId/:userId", deviceController.getDeviceByuserId);
 
 // ============ Device Control ============
 routes.get("/reboot", deviceController.deviceReboot);
-routes.get("/shutdown", deviceController.deviceShutdown);
+routes.get(
+  "/shutdown",
+  allowRoles(ADMIN_TECH),
+  deviceController.deviceShutdown,
+);
 
 module.exports = routes;

@@ -4,7 +4,7 @@ const DeviceSchema = new mongoose.Schema(
   {
     siteId: { type: mongoose.Types.ObjectId, required: true, ref: "Site" },
     deviceName: { type: String, required: true },
-    userId: [{ type: mongoose.Types.ObjectId, required: false, ref: "User" }],
+    userId: { type: mongoose.Types.ObjectId, required: false, ref: "User" },
     nodeUid: { type: String, required: true, default: null }, // Device NodeID
     temp: { type: Number, required: true, default: 0 },
     humidity: { type: Number, required: true, default: 0 },

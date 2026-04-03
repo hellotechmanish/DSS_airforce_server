@@ -89,7 +89,7 @@ client.on("message", async function (topic, message) {
     nodeId,
     DeviceExists = null;
 
-  // ✅ Parse once
+  //  Parse once
   let raw;
   try {
     raw = JSON.parse(message.toString());
@@ -104,9 +104,9 @@ client.on("message", async function (topic, message) {
 
   if (!DeviceExists) return;
 
-  console.log("✅ Device Found");
+  console.log(" Device Found");
 
-  // ✅ Decode base64
+  //  Decode base64
   try {
     parsedData = JSON.parse(Buffer.from(raw.data, "base64").toString("utf8"));
   } catch (e) {
@@ -149,6 +149,18 @@ client.on("message", async function (topic, message) {
 
   // ================= COMMON PUSH =================
   const pushData = (type, value, deviceKey = key) => {
+    // 🔥 SAFETY CHECK (main fix)
+    if (!DataObject[nodeId]) {
+      DataObject[nodeId] = {};
+    }
+
+    if (!DataObject[nodeId][type]) {
+      DataObject[nodeId][type] = {
+        DEVICE_TYPE: type,
+        DATASTREAMS: [],
+      };
+    }
+
     DataObject[nodeId][type].DATASTREAMS.push({
       deviceNumber: deviceKey,
       value,
@@ -158,6 +170,7 @@ client.on("message", async function (topic, message) {
   // ================= RES =================
   if (
     type === "RES" &&
+    DataObject[nodeId]?.RES?.DATASTREAMS &&
     DataObject[nodeId].RES.DATASTREAMS.length + 1 <= DeviceExists.resSensors
   ) {
     pushData("RES", parsedData[key].toFixed(2));
@@ -166,6 +179,7 @@ client.on("message", async function (topic, message) {
   // ================= NER =================
   if (
     type === "NER" &&
+    DataObject[nodeId]?.NER?.DATASTREAMS &&
     DataObject[nodeId].NER.DATASTREAMS.length + 1 <= DeviceExists.nerSensors
   ) {
     pushData("NER", parsedData[key].toFixed(2));
@@ -174,6 +188,7 @@ client.on("message", async function (topic, message) {
   // ================= SPD =================
   if (
     type === "SPD" &&
+    DataObject[nodeId]?.SPD?.DATASTREAMS &&
     DataObject[nodeId].SPD.DATASTREAMS.length + 1 <= DeviceExists.spdSensors
   ) {
     let latestSurge = await DeviceMsg.find({
@@ -184,7 +199,8 @@ client.on("message", async function (topic, message) {
       .limit(1)
       .lean();
 
-    let value = parsedData[key] / 100;
+    // let value = parsedData[key] / 100;
+    let value = parsedData[key];
 
     if (latestSurge.length > 0) {
       const oldValue =
@@ -216,7 +232,8 @@ client.on("message", async function (topic, message) {
 
   // ================= VMR =================
   if (
-    type === "VA" &&
+    type === "VMR" &&
+    DataObject[nodeId]?.VMR?.DATASTREAMS &&
     DataObject[nodeId].VMR.DATASTREAMS.length + 1 <= DeviceExists.vmrSensors
   ) {
     delete parsedData.start;
@@ -824,6 +841,14 @@ exports.createDevice = async (req, res, next) => {
   }
 
   try {
+    const existingDevice = await Device.findOne({ nodeUid });
+
+    if (existingDevice) {
+      return res.status(409).json({
+        msg: "Node UID already exists",
+      });
+    }
+
     let device = await Device.create({
       siteId,
       deviceName,
@@ -842,46 +867,66 @@ exports.createDevice = async (req, res, next) => {
     }
   } catch (error) {
     console.log("error from createDevice ==>", error);
-    return res.status(500).json({ msg: error.message });
+    return res.status(500).json({
+      message: "Something went wrong",
+    });
   }
 };
 
 // ================================= Edit Device ================================ //
 
-exports.editDevice = async (req, res, next) => {
-  console.log("==== editDevice function got hit () ====");
-  const {
-    deviceID,
-    deviceName,
-    nodeUid,
-    vmrSensors,
-    resSensors,
-    spdSensors,
-    nerSensors,
-    resSensorsThreshold,
-    vmrSensorsThreshold,
-    spdSensorsThreshold,
-    nerSensorsThreshold,
-  } = req.body;
-  try {
-    let device = await Device.findByIdAndUpdate(deviceID, {
-      deviceName,
-      nodeUid,
-      vmrSensors,
-      resSensors,
-      spdSensors,
-      nerSensors,
-      resSensorsThreshold,
-      vmrSensorsThreshold,
-      spdSensorsThreshold,
-      nerSensorsThreshold,
+exports.editDevice = async (req, res) => {
+  console.log("==== editDevice function got hit ====");
+
+  const { deviceID, ...updateData } = req.body;
+
+  console.log("deviceID:", deviceID);
+  console.log("updateData:", updateData);
+
+  if (!deviceID) {
+    return res.status(400).json({
+      msg: "deviceID is required",
     });
-    if (device) {
-      return res.status(200).json({ msg: "device edited successfully" });
+  }
+
+  try {
+    if (updateData.nodeUid) {
+      const existingDevice = await Device.findOne({
+        nodeUid: updateData.nodeUid,
+        _id: { $ne: deviceID },
+      });
+
+      if (existingDevice) {
+        return res.status(409).json({
+          msg: "Node UID already exists",
+        });
+      }
     }
+
+    const device = await Device.findByIdAndUpdate(
+      deviceID,
+      { $set: updateData },
+      { new: true, runValidators: true },
+    );
+
+    if (!device) {
+      return res.status(404).json({
+        msg: "Device not found",
+      });
+    }
+
+    console.log("device edited successfully");
+
+    return res.status(200).json({
+      msg: "device edited successfully",
+      device,
+    });
   } catch (error) {
     console.log("error from editDevice ==>", error);
-    return res.status(500).json({ msg: error.message });
+
+    return res.status(500).json({
+      message: "Something went wrong",
+    });
   }
 };
 
@@ -900,13 +945,17 @@ exports.deleteDevice = async (req, res, next) => {
     }
   } catch (error) {
     console.log("error from deleteDevice ==>", error);
-    return res.status(500).json({ msg: error.message });
+    return res.status(500).json({
+      message: "Something went wrong",
+    });
   }
 };
 
 // ========================= Today latest device Graph data ======================== //
 exports.latestdevicedata = async (req, res) => {
   const { sensorName, deviceNumber, deviceId, startDate, endDate } = req.body;
+
+  // console.log(":>>>>>>>>>>>>", deviceNumber);
 
   if (!sensorName || !deviceId || !startDate || !endDate) {
     return res.status(400).json({ msg: "Please provide all required data" });
@@ -933,7 +982,9 @@ exports.latestdevicedata = async (req, res) => {
     return res.status(200).json({ msg: resp });
   } catch (error) {
     console.log("error:", error);
-    return res.status(500).json({ msg: error.message });
+    return res.status(500).json({
+      message: "Something went wrong",
+    });
   }
 };
 
@@ -1072,20 +1123,22 @@ exports.latestdevicedataBydate = async (req, res, next) => {
     return res.status(200).json({ msg: resp });
   } catch (error) {
     console.log("error from latest devicedata ==>", error);
-    return res.status(500).json({ msg: error.message });
+    return res.status(500).json({
+      message: "Something went wrong",
+    });
   }
 };
 
 // ========================= Device Data acc. to siteId ============================= //
 exports.getdeviceList = async (req, res) => {
   const { siteId } = req.params;
+  console.log("req.user.id:", req.user.id);
 
   if (!siteId) {
     return res.status(400).json({ msg: "Please provide siteId" });
   }
 
   try {
-    // convert to ObjectId
     const siteIds = siteId
       .split(",")
       .map((id) => new mongoose.Types.ObjectId(id));
@@ -1094,16 +1147,21 @@ exports.getdeviceList = async (req, res) => {
       siteId: { $in: siteIds },
     };
 
-    // user → only assigned devices
+    // FIX (IMPORTANT)
     if (req.user.role === "user") {
-      deviceQuery.userId = { $in: [req.user._id] };
+      deviceQuery.userId = new mongoose.Types.ObjectId(req.user.id);
     }
 
     const deviceList = await Device.find(deviceQuery, {
       deviceName: 1,
+      nodeUid: 1,
+      createdAt: 1,
+      userId: 1,
       _id: 1,
       siteId: 1,
     }).lean();
+
+    // console.log("deviceList:", deviceList);
 
     return res.status(200).json({ msg: deviceList });
   } catch (error) {
@@ -1133,6 +1191,9 @@ exports.getDeviceListBySiteIds = async (req, res) => {
 
     const deviceList = await Device.find(query, {
       deviceName: 1,
+      nodeUid: 1,
+      createdAt: 1,
+      userId: 1,
       _id: 1,
       siteId: 1,
     }).lean();
@@ -1166,10 +1227,19 @@ exports.getdeviceListByuserId = async (req, res, next) => {
 
     // 👇 user role ke liye hi filter lagao
     if (req.user.role === "user") {
-      query.userId = { $in: [req.user._id] };
+      query.userId = req.user._id;
+    } else {
+      query.userId = userId;
     }
 
-    const userDeviceList = await Device.find(query).lean();
+    const userDeviceList = await Device.find(query, {
+      deviceName: 1,
+      nodeUid: 1,
+      createdAt: 1,
+      userId: 1,
+      _id: 1,
+      siteId: 1,
+    }).lean();
 
     console.log("query", query);
     console.log("devices", userDeviceList);
@@ -1177,7 +1247,9 @@ exports.getdeviceListByuserId = async (req, res, next) => {
     return res.status(200).json({ msg: userDeviceList });
   } catch (error) {
     console.log("error from getdeviceListByuserId =>", error);
-    return res.status(500).json({ msg: error.message });
+    return res.status(500).json({
+      message: "Something went wrong",
+    });
   }
 };
 
@@ -1197,7 +1269,9 @@ exports.getDeviceById = async (req, res, next) => {
       }
     } catch (error) {
       console.log("error from getDevice", error);
-      return res.status(500).json({ msg: error.message });
+      return res.status(500).json({
+        message: "Something went wrong",
+      });
     }
   }
 };
@@ -1213,7 +1287,9 @@ exports.getDeviceDataById = async (req, res, next) => {
     return res.status(200).json({ msg: device });
   } catch (error) {
     console.log("error from getDevice", error);
-    return res.status(500).json({ msg: error.message });
+    return res.status(500).json({
+      message: "Something went wrong",
+    });
   }
 };
 
@@ -1375,7 +1451,9 @@ exports.getCsv = async (req, res, next) => {
       // ========================================================== //
     } catch (error) {
       console.log("error from getCsv VMR ==>", error);
-      return res.status(500).json({ msg: error.message });
+      return res.status(500).json({
+        message: "Something went wrong",
+      });
     }
   } else {
     console.log("it is not a vmr");
@@ -1491,7 +1569,9 @@ exports.getCsv = async (req, res, next) => {
       // ========================================================== //
     } catch (error) {
       console.log("error from getCsv ==>", error);
-      return res.status(500).json({ msg: error.message });
+      return res.status(500).json({
+        message: "Something went wrong",
+      });
     }
   }
 };
@@ -1515,7 +1595,9 @@ exports.getDeviceByuserId = async (req, res, next) => {
     }
   } catch (error) {
     console.log("error from getDeviceByuserId", error);
-    return res.status(500).json({ msg: error.message });
+    return res.status(500).json({
+      message: "Something went wrong",
+    });
   }
 };
 
@@ -1537,7 +1619,9 @@ exports.checkDeviceUid = async (req, res, next) => {
     }
   } catch (error) {
     console.log("error from checkDeviceUid", error);
-    return res.status(500).json({ msg: error.message });
+    return res.status(500).json({
+      message: "Something went wrong",
+    });
   }
 };
 

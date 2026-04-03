@@ -1,14 +1,18 @@
 const express = require("express");
 const siteController = require("../controllers/siteController");
 const validate = require("../middleware/validationMethod");
+const allowRoles = require("../middleware/allowRoles");
 
 const routes = express.Router();
+const ADMIN = ["admin"];
+const ADMIN_TECH = ["admin", "technician"];
+const ALL = ["admin", "technician", "user"];
 
 /* 🔐 Already protected by app.js */
 
-routes.post("/createSite", siteController.createSite);
-routes.post("/editSite", siteController.editSite);
-routes.post("/deleteSite", siteController.deleteSite);
+routes.post("/createSite", allowRoles(ADMIN), siteController.createSite);
+routes.post("/editSite", allowRoles(ADMIN), siteController.editSite);
+routes.post("/deleteSite", allowRoles(ADMIN), siteController.deleteSite);
 routes.get("/getnumberOfSite", siteController.numberOfSite);
 routes.get("/getSiteByUserId/:userId", siteController.getSiteByUserId); // testing pending
 routes.post("/checkSiteUid", siteController.checkSiteUid);

@@ -1,13 +1,15 @@
 const express = require("express");
 const alarmController = require("../controllers/alarmController");
 const validate = require("../middleware/validationMethod");
+const allowRoles = require("../middleware/allowRoles");
 
 const routes = express.Router();
+const ADMIN = ["admin"];
+const ADMIN_TECH = ["admin", "technician"];
+const ALL = ["admin", "technician", "user"];
 
 /* 🔐 Already protected by app.js */
-
 /* ===================== GET ===================== */
-
 routes.get("/getAllAlarm", alarmController.getAllAlarm);
 
 routes.get(

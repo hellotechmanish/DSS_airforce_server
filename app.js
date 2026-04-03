@@ -12,6 +12,7 @@ const getRangebetweenDates = require("./helperFunction/getdatelist");
 var ObjectId = require("mongodb").ObjectId;
 const morgan = require("morgan");
 const { checkauth } = require("./middleware/checkauth");
+const helmet = require("helmet");
 
 const app = express();
 require("dotenv").config();
@@ -21,16 +22,25 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // app.use(cors("*"));
+app.use(helmet.frameguard({ action: "deny" }));
 
+app.use(helmet());
 app.use(
   cors({
-    origin: "http://localhost:3000",
+    // origin: "http://localhost:3000",
+
+    origin: ["http://localhost:3000", "http://192.168.29.140:3000"],
   }),
 );
 
 app.use(morgan("dev"));
 // app.use('/public', express.static('public'));
+
 /* 🔓 AUTH */
+app.get("/api", (req, res) => {
+  res.status(200).json({ success: true, message: "API is running" });
+});
+
 app.use("/api/auth", require("./routes/auth.routes"));
 
 /* 🔐 PROTECTED USER APIs */
@@ -40,25 +50,26 @@ app.use("/api/site", checkauth, require("./routes/siteRoutes"));
 app.use("/api/device", checkauth, require("./routes/deviceRoutes"));
 app.use("/api/alarm", checkauth, require("./routes/alarmRoutes"));
 
-mongoose.set("strictQuery", false);
+// mongoose.set("strictQuery", false); // prev
+mongoose.set("strictQuery", true);
+
 mongoose
-  .connect("mongodb://127.0.0.1:27017/gnVoltage", {
+  .connect(process.env.MONGO_URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
+    serverSelectionTimeoutMS: 5000,
   })
   .then(() => {
-    console.log("Mongo DB successfully Connected");
-  })
-  .then(() => {
+    console.log("[ MongoDB connected successfully ]");
+
+    // Start server only after DB connects
     app.listen(PORT, () => {
-      console.log(`  === SERVER CONNECTED SUCCESSFULLY AT ${PORT} === `);
+      console.log(`[->] Server running on port ${PORT}`);
     });
   })
-  .then(() => {
-    //  frontendStart()
-  })
   .catch((err) => {
-    console.log(err);
+    console.error(" Database connection failed:", err.message);
+    process.exit(1); // stop app if DB fails
   });
 
 async function frontendStart() {
