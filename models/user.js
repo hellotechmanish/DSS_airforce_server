@@ -2,25 +2,6 @@ const mongoose = require("mongoose");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 
-const deviceSensorSchema = new mongoose.Schema(
-  {
-    sensorId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Device",
-      required: true,
-    },
-    status: {
-      type: String,
-      enum: ["active", "inactive"],
-      default: "active",
-    },
-    lastReading: {
-      type: Number,
-    },
-  },
-  { _id: false },
-);
-
 const UserSchema = new mongoose.Schema(
   {
     fullName: {
@@ -28,47 +9,64 @@ const UserSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
-    uid: {
+
+    username: {
       type: String,
       required: true,
       unique: true,
       index: true,
       trim: true,
+      lowercase: true,
+      minlength: 3,
+      maxlength: 20,
     },
+
     password: {
       type: String,
       required: true,
       minlength: 6,
       select: false,
     },
+
     role: {
       type: String,
       enum: ["admin", "technician", "user"],
-      default: "admin",
+      default: "user",
+      index: true,
     },
+
     isActive: {
       type: Boolean,
       default: true,
     },
-    deviceSensors: [deviceSensorSchema],
+
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
   },
   {
     timestamps: true,
   },
 );
 
+// hash password
 UserSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
   this.password = await bcrypt.hash(this.password, 10);
   next();
 });
 
+// compare password
 UserSchema.methods.matchPasswords = async function (password) {
   return await bcrypt.compare(password, this.password);
 };
 
+// jwt token
 UserSchema.methods.getSignedToken = function () {
-  return jwt.sign({ id: this._id, role: this.role }, process.env.JWT_SECRET);
+  return jwt.sign({ id: this._id, role: this.role }, process.env.JWT_SECRET, {
+    expiresIn: "7d",
+  });
 };
 
 const User = mongoose.model("User", UserSchema);

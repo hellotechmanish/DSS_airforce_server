@@ -2,33 +2,74 @@ const mongoose = require("mongoose");
 
 const DeviceSchema = new mongoose.Schema(
   {
-    siteId: { type: mongoose.Types.ObjectId, required: true, ref: "Site" },
-    deviceName: { type: String, required: true },
-    userId: { type: mongoose.Types.ObjectId, required: false, ref: "User" },
-    nodeUid: { type: String, required: true, default: null }, // Device NodeID
-    temp: { type: Number, required: true, default: 0 },
-    humidity: { type: Number, required: true, default: 0 },
-    vmrSensors: { type: Number, required: false, default: 0 }, // Number of Phase Sensor voltage manage
-    resSensors: { type: Number, required: false, default: 0 }, // Number of Resistance Sensor
-    spdSensors: { type: Number, required: false, default: 0 }, // Number of SPD Sensor for hight voltage
-    nerSensors: { type: Number, required: false, default: 0 }, // Number of GN Sensor for ground and nutral voltage
+    siteId: {
+      type: mongoose.Types.ObjectId,
+      required: true,
+      ref: "Site",
+      index: true,
+    },
 
-    vmrSensorsThreshold: { type: Object, required: false, default: 0 }, // Phase Threshold  {r: 2, y: 2, b: 2, ry:2, yb:3, rb:4}
-    resSensorsThreshold: { type: Number, required: false, default: 0 }, // Resistance Threshold
-    spdSensorsThreshold: { type: Number, required: false, default: 0 }, // SPD Threshold
-    nerSensorsThreshold: { type: Number, required: false, default: 0 }, // GN Threshold
+    deviceName: {
+      type: String,
+      required: true,
+      trim: true,
+    },
 
-    ResValues: Object, // to show latest values on the card table
+    //  keep for now (will remove later)
+    userId: {
+      type: mongoose.Types.ObjectId,
+      ref: "User",
+    },
+
+    nodeUid: {
+      type: String,
+      required: true,
+      unique: true,
+      index: true,
+      trim: true,
+      uppercase: true,
+    },
+
+    //  NEW (future ready - no break)
+    temp: { type: Number, default: 0 },
+    humidity: { type: Number, default: 0 },
+
+    vmrSensors: { type: Number, default: 0 },
+    resSensors: { type: Number, default: 0 },
+    spdSensors: { type: Number, default: 0 },
+    nerSensors: { type: Number, default: 0 },
+
+    vmrSensorsThreshold: { type: Object, default: {} },
+    resSensorsThreshold: { type: Number, default: 0 },
+    spdSensorsThreshold: { type: Number, default: 0 },
+    nerSensorsThreshold: { type: Number, default: 0 },
+
+    ResValues: Object,
     NerValues: Object,
     SpdValues: Object,
     VmrValues: Object,
     HumValues: Object,
     TempValues: Object,
+
+    //  NEW (future ready - no break)
+    createdBy: {
+      type: mongoose.Types.ObjectId,
+      ref: "User",
+    },
+
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
   },
   {
     timestamps: true,
   },
 );
+
+// indexes
+DeviceSchema.index({ siteId: 1 });
+DeviceSchema.index({ nodeUid: 1 });
 
 const Device = mongoose.model("Device", DeviceSchema);
 

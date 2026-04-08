@@ -5,42 +5,100 @@ const User = require("../models/user");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 // =========================== Create Site ======================== //
-exports.createSite = async (req, res, next) => {
-  console.log("-- createSite function got hit () --");
-  const { siteName, uid, location, pincode, country, state } = req.body;
-
-  if (!siteName || !uid || !location || !pincode || !country || !state) {
-    return res.status(400).json({ msg: "Please! provide all required data" });
-  }
+exports.createSite = async (req, res) => {
+  console.log("-- createSite function got hit --");
 
   try {
-    let site = await Site.create({
+    let { siteName, site_uid, location, pincode, country, state } = req.body;
+
+    // Trim safely
+    siteName = siteName?.trim();
+    site_uid = site_uid?.trim();
+    location = location?.trim();
+    pincode = pincode?.toString().trim();
+    country = country?.trim();
+    state = state?.trim();
+
+    // Field validation
+    const missingFields = [];
+    if (!siteName) missingFields.push("siteName");
+    if (!site_uid) missingFields.push("site_uid");
+    if (!location) missingFields.push("location");
+    if (!pincode) missingFields.push("pincode");
+    if (!country) missingFields.push("country");
+    if (!state) missingFields.push("state");
+
+    if (missingFields.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields",
+        fields: missingFields,
+      });
+    }
+
+    // UID check
+    const existing = await Site.findOne({ site_uid });
+    if (existing) {
+      return res.status(409).json({
+        success: false,
+        message: "Site UID already exists",
+        field: "site_uid",
+      });
+    }
+
+    const site = await Site.create({
       siteName,
-      uid,
+      site_uid,
       location,
       pincode,
       country,
       state,
+      createdBy: req.user?.id,
     });
-    if (site) {
-      return res.status(200).json({ msg: "site created successfully" });
-    }
+
+    return res.status(201).json({
+      success: true,
+      message: "Site created successfully",
+      data: site,
+    });
   } catch (error) {
-    console.log("error from createSite ==>", error);
+    console.error("createSite error:", error);
+
+    // 🔥 Handle Mongoose validation errors
+    if (error.name === "ValidationError") {
+      const errors = Object.values(error.errors).map((err) => err.message);
+
+      return res.status(400).json({
+        success: false,
+        message: "Validation failed",
+        errors,
+      });
+    }
+
+    // 🔥 Handle duplicate key error (Mongo)
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: "Duplicate field value",
+        field: Object.keys(error.keyValue)[0],
+      });
+    }
+
     return res.status(500).json({
-      message: "Something went wrong",
+      success: false,
+      message: "Internal server error",
     });
   }
 };
-
 // =========================== Edit Site ======================== //
 exports.editSite = async (req, res, next) => {
   console.log("==== editSite function got hit () ====");
-  const { siteId, siteName, uid, location, pincode, country, state } = req.body;
+  const { siteId, siteName, site_uid, location, pincode, country, state } =
+    req.body;
   try {
     let site = await Site.findByIdAndUpdate(
       siteId,
-      { siteName, uid, location, pincode, country, state },
+      { siteName, site_uid, location, pincode, country, state },
       { new: true },
     );
 
@@ -300,6 +358,7 @@ exports.getAllSiteResistance = async (req, res) => {
     // 🔥 ROLE FILTER
     if (req.user.role === "user") {
       matchStage.userId = new mongoose.Types.ObjectId(req.user.id);
+    
     }
 
     const pipeline = [

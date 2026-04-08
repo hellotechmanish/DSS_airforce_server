@@ -6,95 +6,65 @@ const bcrypt = require("bcryptjs");
 
 // =========================== Create User ============================= //
 exports.addUser = async (req, res) => {
-  let { password, fullName, uid, type, role, sites } = req.body;
-
   try {
-    //  Convert numeric role to string
-    if (role === 0 || role === "0") role = "admin";
-    if (role === 1 || role === "1") role = "technician";
-    if (role === 2 || role === "2") role = "user";
+    let { password, fullName, username, role, type } = req.body;
 
-    if (type === 0 || type === "0") type = "admin";
-    if (type === 1 || type === "1") type = "technician";
-    if (type === 2 || type === "2") type = "user";
+    // Normalize input
+    fullName = fullName?.trim();
+    username = username?.trim().toLowerCase();
+    password = password?.trim();
 
-    const finalRole = role || type;
+    // Role mapping (support old type + new role)
+    const roleMap = {
+      0: "admin",
+      1: "technician",
+      2: "user",
+    };
+
+    const finalRole = roleMap[role] || roleMap[type] || role || type;
 
     if (!["admin", "technician", "user"].includes(finalRole)) {
-      return res.status(400).json({ msg: "Invalid role type" });
+      return res.status(400).json({ message: "Invalid role type" });
     }
 
-    const userExist = await User.findOne({ uid });
+    // Check username
+    const userExist = await User.findOne({ username });
     if (userExist) {
-      return res.status(403).json({ msg: "UID already registered" });
+      return res.status(400).json({ message: "Username already registered" });
     }
 
-    let user;
-
-    // ================= TECHNICIAN =================
-    if (finalRole === "technician") {
-      user = await User.create({
-        password,
-        fullName,
-        uid,
-        role: "technician",
+    // RBAC restriction
+    if (req.user.role === "technician" && finalRole !== "user") {
+      return res.status(403).json({
+        message: "Technician can only create users",
       });
     }
 
-    // ================= USER =================
-    if (finalRole === "user") {
-      // if (!sites || sites.length === 0) {
-      //   return res.status(400).json({
-      //     msg: "Site required for user",
-      //   });
-      // }
-
-      // create user first
-      user = await User.create({
-        password,
-        fullName,
-        uid,
-        role: "user",
-      });
-
-      //  loop through sites
-      // for (const site of sites) {
-      //   const { siteId, devices } = site;
-
-      //   // assign user to site
-      //   await Site.findByIdAndUpdate(siteId, {
-      //     $addToSet: { userId: user._id },
-      //   });
-
-      //   // assign user to devices if exist
-      //   if (devices && devices.length > 0) {
-      //     for (const deviceId of devices) {
-      //       await Device.findByIdAndUpdate(deviceId, {
-      //         $addToSet: { userId: user._id },
-      //       });
-      //     }
-      //   }
-      // }
-    }
-
-    // ================= ADMIN =================
-    if (finalRole === "admin") {
-      user = await User.create({
-        password,
-        fullName,
-        uid,
-        role: "admin",
-      });
-    }
+    // Create user
+    const user = await User.create({
+      fullName,
+      username,
+      password,
+      role: finalRole,
+      createdBy: req.user.id,
+    });
 
     return res.status(201).json({
-      msg: "User created successfully",
+      success: true,
+      message: "User created successfully",
+      data: {
+        _id: user._id,
+        fullName: user.fullName,
+        username: user.username,
+        role: user.role,
+      },
     });
   } catch (error) {
     console.log("ADD USER ERROR =>", error);
 
     return res.status(500).json({
-      msg: error.message,
+      success: false,
+      message: error.message,
     });
   }
 };
@@ -136,7 +106,7 @@ exports.login = async (req, res, next) => {
 // =========================== RESET Password ========================== //
 exports.resetPassword = async (req, res) => {
   const { password, userId } = req.body;
-  
+
   console.log("req.body", req.body);
 
   try {
@@ -216,7 +186,7 @@ exports.getUserList = async (req, res, next) => {
 
 // ============================== Edit User =================================== //
 exports.editUser = async (req, res, next) => {
-  const { userId, userRole, fullName, uid } = req.body;
+  const { userId, userRole, fullName, username } = req.body;
   console.log("=========== Edit function got hit () =============");
   if (userRole === 1) {
     console.log("edit Technician Profile");
@@ -225,7 +195,7 @@ exports.editUser = async (req, res, next) => {
         userId,
         {
           fullName,
-          uid,
+          username,
         },
         {
           new: true,
@@ -234,7 +204,7 @@ exports.editUser = async (req, res, next) => {
 
       return res
         .status(200)
-        .json({ msg: "user edited successfully", data: user });
+        .json({ message: "user edited successfully", data: user });
       // sendToken(user, 201, res);
     } catch (error) {
       console.log("error from addUser By technician==>", error);
@@ -251,7 +221,7 @@ exports.editUser = async (req, res, next) => {
         userId,
         {
           fullName,
-          uid,
+          username,
         },
         {
           new: true,
@@ -260,7 +230,7 @@ exports.editUser = async (req, res, next) => {
 
       return res
         .status(200)
-        .json({ msg: "user edited successfully", data: user });
+        .json({ message: "user edited successfully", data: user });
       // sendToken(user, 201, res);
     } catch (error) {
       console.log("error from addUser By admin==>", error);

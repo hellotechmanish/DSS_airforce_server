@@ -837,7 +837,9 @@ exports.createDevice = async (req, res, next) => {
   } = req.body;
 
   if (!siteId || !deviceName || !nodeUid) {
-    return res.status(400).json({ msg: "Please! provide all required data" });
+    return res
+      .status(400)
+      .json({ message: "Please! provide all required data" });
   }
 
   try {
@@ -845,7 +847,7 @@ exports.createDevice = async (req, res, next) => {
 
     if (existingDevice) {
       return res.status(409).json({
-        msg: "Node UID already exists",
+        message: "Node UID already exists",
       });
     }
 
@@ -863,7 +865,10 @@ exports.createDevice = async (req, res, next) => {
       nerSensorsThreshold,
     });
     if (device) {
-      return res.status(200).json({ msg: "device created successfully" });
+      return res.status(201).json({
+        message: "Device created successfully",
+        device,
+      });
     }
   } catch (error) {
     console.log("error from createDevice ==>", error);
@@ -1132,7 +1137,7 @@ exports.latestdevicedataBydate = async (req, res, next) => {
 // ========================= Device Data acc. to siteId ============================= //
 exports.getdeviceList = async (req, res) => {
   const { siteId } = req.params;
-  console.log("req.user.id:", req.user.id);
+  // console.log("req.user.id:", req.user.id);
 
   if (!siteId) {
     return res.status(400).json({ msg: "Please provide siteId" });
