@@ -822,34 +822,41 @@ async function compareThresholdValue(
 // ================================= Create Device ================================ //
 exports.createDevice = async (req, res, next) => {
   console.log("==== createDevice function got hit () ====");
-  const {
-    siteId,
-    deviceName,
-    nodeUid,
-    vmrSensors,
-    resSensors,
-    spdSensors,
-    nerSensors,
-    resSensorsThreshold,
-    vmrSensorsThreshold,
-    spdSensorsThreshold,
-    nerSensorsThreshold,
-  } = req.body;
-
-  if (!siteId || !deviceName || !nodeUid) {
-    return res.status(400).json({ msg: "Please! provide all required data" });
-  }
 
   try {
-    const existingDevice = await Device.findOne({ nodeUid });
+    const {
+      siteId,
+      deviceName,
+      nodeUid,
+      vmrSensors,
+      resSensors,
+      spdSensors,
+      nerSensors,
+      resSensorsThreshold,
+      vmrSensorsThreshold,
+      spdSensorsThreshold,
+      nerSensorsThreshold,
+    } = req.body;
 
-    if (existingDevice) {
-      return res.status(409).json({
-        msg: "Node UID already exists",
+    //  Required fields validation
+    if (!siteId || !deviceName || !nodeUid) {
+      return res.status(400).json({
+        success: false,
+        message: "siteId, deviceName, and nodeUid are required",
       });
     }
 
-    let device = await Device.create({
+    //  Check duplicate nodeUid
+    const existingDevice = await Device.findOne({ nodeUid });
+    if (existingDevice) {
+      return res.status(409).json({
+        success: false,
+        message: "Node UID already exists",
+      });
+    }
+
+    //  Create device
+    const device = await Device.create({
       siteId,
       deviceName,
       nodeUid,
@@ -862,13 +869,26 @@ exports.createDevice = async (req, res, next) => {
       spdSensorsThreshold,
       nerSensorsThreshold,
     });
-    if (device) {
-      return res.status(200).json({ msg: "device created successfully" });
-    }
+
+    return res.status(201).json({
+      success: true,
+      message: "Device created successfully",
+      data: device,
+    });
   } catch (error) {
-    console.log("error from createDevice ==>", error);
+    console.error("createDevice error =>", error);
+
+    //  Handle known mongoose errors
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: "Duplicate field value entered",
+      });
+    }
+
     return res.status(500).json({
-      message: "Something went wrong",
+      success: false,
+      message: error.message || "Internal Server Error",
     });
   }
 };
