@@ -173,7 +173,7 @@ client.on("message", async function (topic, message) {
     DataObject[nodeId]?.RES?.DATASTREAMS &&
     DataObject[nodeId].RES.DATASTREAMS.length + 1 <= DeviceExists.resSensors
   ) {
-    pushData("RES", parsedData[key].toFixed(2));
+    pushData("RES", parsedData[key]?.toFixed(2));
   }
 
   // ================= NER =================
