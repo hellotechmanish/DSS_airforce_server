@@ -204,7 +204,7 @@ client.on("message", async function (topic, message) {
 
     if (latestSurge.length > 0) {
       const oldValue =
-        latestSurge[0].msg.DATASTREAMS.find((i) => i.deviceNumber === key)
+        latestSurge[0].msg?.DATASTREAMS.find((i) => i.deviceNumber === key)
           ?.value || 0;
 
       if (oldValue === value) {
