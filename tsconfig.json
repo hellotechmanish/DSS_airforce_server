@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    /* ---------------- Core ---------------- */
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+
+    /* ---------------- Paths ---------------- */
+    "rootDir": "./src",
+    "outDir": "./dist",
+
+    /* ---------------- Types ---------------- */
+    "types": ["node"],
+    "esModuleInterop": true,
+
+    /* ---------------- Strict ---------------- */
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+
+    /* ---------------- Build ---------------- */
+    "sourceMap": true,
+    "declaration": true,
+    "declarationMap": true,
+
+    /* ---------------- Safety ---------------- */
+    "isolatedModules": true,
+    "skipLibCheck": true
+  },
+
+  "include": ["src"]
+}
