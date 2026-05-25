@@ -1,10 +1,19 @@
 import express from "express";
-import * as authController from "../controllers/authController.js";
+
+import {
+  signup,
+  login,
+  forgotPassword,
+} from "../controllers/auth.controller.js";
+
 const router = express.Router();
 
-/* 🔓 PUBLIC AUTH ROUTES */
-router.post("/signup", authController.signup);
-router.post("/login", authController.login);
-router.post("/forgot-password", authController.forgotPassword);
+/* ================= PUBLIC ================= */
+
+router.post("/signup", signup);
+
+router.post("/login", login);
+
+router.post("/forgot-password", forgotPassword);
 
 export default router;

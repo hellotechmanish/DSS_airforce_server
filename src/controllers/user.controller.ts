@@ -1,25 +1,25 @@
 import type { Request, Response } from "express";
-import User from "../models/user.js";
+import User from "../models/user.modal.js";
 
 /* ===================== ADD USER ===================== */
 
 export const addUser = async (req: Request, res: Response): Promise<void> => {
   try {
-    let { fullName, uid, password, role } = req.body;
+    let { fullName, username, password, role } = req.body;
 
-    if (!fullName || !uid || !password) {
+    if (!fullName || !username || !password) {
       res.status(400).json({ msg: "Missing required fields" });
       return;
     }
 
     fullName = fullName.trim();
-    uid = uid.trim().toLowerCase();
+    username = username.trim().toLowerCase();
     password = password.trim();
 
-    const existingUser = await User.findOne({ uid }).lean();
+    const existingUser = await User.findOne({ username }).lean();
 
     if (existingUser) {
-      res.status(400).json({ msg: "UID already exists" });
+      res.status(400).json({ msg: "Username already exists" });
       return;
     }
 
@@ -29,7 +29,7 @@ export const addUser = async (req: Request, res: Response): Promise<void> => {
 
     const user = await User.create({
       fullName,
-      uid,
+      username,
       password,
       role: safeRole,
     });
@@ -39,7 +39,7 @@ export const addUser = async (req: Request, res: Response): Promise<void> => {
       user: {
         id: user._id,
         fullName: user.fullName,
-        uid: user.uid,
+        username: user.username,
         role: user.role,
       },
     });
@@ -169,7 +169,7 @@ export const checkUserUid = async (
       return;
     }
 
-    const exists = await User.exists({ uid: uid.toLowerCase() });
+    const exists = await User.exists({ username: uid.toLowerCase() });
 
     res.status(200).json({
       available: !exists,

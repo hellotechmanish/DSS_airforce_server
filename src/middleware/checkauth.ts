@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken";
 import type { Request, Response, NextFunction } from "express";
 import type { JwtPayload } from "jsonwebtoken";
-import User from "../models/user.js";
+import User from "../models/user.modal.js";
 
 declare global {
   namespace Express {

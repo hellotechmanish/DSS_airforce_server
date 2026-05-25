@@ -1,0 +1,10 @@
+{
+    "version": 3,
+    "file": "passvalidator.d.ts",
+    "sourceRoot": "",
+    "sources": [
+        "passvalidator.ts"
+    ],
+    "names": [],
+    "mappings": "AAAA,MAAM,WAAW,wBAAwB;IACvC,OAAO,EAAE,OAAO,CAAC;IACjB,MAAM,EAAE,MAAM,EAAE,CAAC;CAClB;AAED,QAAA,MAAM,gBAAgB,GAAI,UAAU,MAAM,KAAG,wBAuB5C,CAAC;AAEF,eAAe,gBAAgB,CAAC"
+}
