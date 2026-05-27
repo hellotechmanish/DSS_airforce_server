@@ -18,6 +18,12 @@ const alarmSchema = new Schema(
 
     message: String,
 
+    SensorName: String,
+
+    thresholdValue: Number,
+
+    alarmValue: Number,
+
     severity: {
       type: String,
 

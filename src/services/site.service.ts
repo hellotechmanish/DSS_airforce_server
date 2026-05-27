@@ -11,9 +11,14 @@ interface UserType {
 
 /* =========================== Create Site ======================== */
 export const createSite = async (payload: any, user: UserType) => {
-  const { siteName, siteId, location, pincode, country, state } = payload;
+  const { siteName, location, pincode, country, state } = payload;
+  const siteUid = payload.siteUid ?? payload.siteId;
 
-  const existingSite = await Site.findOne({ siteId }).lean();
+  if (!siteUid) {
+    throw new Error("Site UID is required");
+  }
+
+  const existingSite = await Site.findOne({ siteUid }).lean();
 
   if (existingSite) {
     throw new Error("Site UID already exists");
@@ -21,7 +26,7 @@ export const createSite = async (payload: any, user: UserType) => {
 
   const site = await Site.create({
     siteName,
-    siteId,
+    siteUid,
     location,
     pincode,
     country,
@@ -143,6 +148,7 @@ export const numberOfSite = async (query: any, user: UserType) => {
 
   const updatedSites = sites.map((site: any) => ({
     ...site,
+    siteUid: site.siteUid ?? site.siteId ?? "",
     deviceCount: countMap[site._id.toString()] || 0,
   }));
 

@@ -13,7 +13,7 @@ import connectDB from "./config/db.js";
 import corsConfig from "./config/cors.js";
 import userRoutes from "./routes/user.routes.js";
 import siteroutes from "./routes/site.routes.js";
-// import deviceroutes from "./routes/device.routes.js";
+import deviceroutes from "./routes/device.routes.js";
 // import sensorroutes from "./routes/sensor.routes.js";
 
 dotenv.config();
@@ -46,7 +46,7 @@ app.use("/api/auth", authRoutes);
 // protected
 app.use("/api/user", checkauth, userRoutes);
 app.use("/api/site", checkauth, siteroutes);
-// app.use("/api/device", checkauth, deviceroutes);
+app.use("/api/device", checkauth, deviceroutes);
 // app.use("/api/sensor", checkauth, sensorroutes);
 
 /* ================= START SERVER ================= */

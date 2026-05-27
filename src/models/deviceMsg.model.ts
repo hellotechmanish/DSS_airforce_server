@@ -1,51 +1,108 @@
 import mongoose, {
   Schema,
+  Document,
 } from "mongoose";
 
+export interface IDeviceMsg
+  extends Document {
+  deviceId: mongoose.Types.ObjectId;
+
+  msg: any;
+
+  date: Date;
+
+  time: string;
+
+  dateAndTime: string;
+
+  temperature?: number;
+
+  humidity?: number;
+
+  voltage?: number;
+
+  current?: number;
+
+  resistance?: number;
+
+  timestamp: Date;
+
+  createdAt: Date;
+
+  updatedAt: Date;
+}
+
 const deviceMsgSchema =
-  new Schema(
+  new Schema<IDeviceMsg>(
     {
       deviceId: {
-        type:
-          Schema.Types
-            .ObjectId,
-
+        type: Schema.Types.ObjectId,
         ref: "Device",
-
+        required: true,
         index: true,
       },
 
-      temperature: Number,
+      msg: {
+        type: Schema.Types.Mixed,
+        required: true,
+      },
 
-      humidity: Number,
+      date: {
+        type: Date,
+        required: true,
+        index: true,
+      },
 
-      voltage: Number,
+      time: {
+        type: String,
+      },
 
-      current: Number,
+      dateAndTime: {
+        type: String,
+      },
 
-      resistance: Number,
+      temperature: {
+        type: Number,
+      },
+
+      humidity: {
+        type: Number,
+      },
+
+      voltage: {
+        type: Number,
+      },
+
+      current: {
+        type: Number,
+      },
+
+      resistance: {
+        type: Number,
+      },
 
       timestamp: {
         type: Date,
-
         default: Date.now,
-
         index: true,
       },
     },
 
     {
       timestamps: true,
-    }
+    },
   );
 
+/* Compound Index */
 deviceMsgSchema.index({
   deviceId: 1,
-
   timestamp: -1,
 });
 
-export default mongoose.model(
-  "DeviceMsg",
-  deviceMsgSchema
-);
+const DeviceMsg =
+  mongoose.model<IDeviceMsg>(
+    "DeviceMsg",
+    deviceMsgSchema,
+  );
+
+export default DeviceMsg;
