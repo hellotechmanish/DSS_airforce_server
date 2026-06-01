@@ -1,24 +1,48 @@
-import mongoose, { Schema } from "mongoose";
+import mongoose, { Schema, Document } from "mongoose";
 
-const siteSchema = new Schema(
+export interface ISite extends Document {
+  siteUid: string;
+  siteName: string;
+  location?: string;
+  pincode?: string;
+  state?: string;
+  country?: string;
+  createdBy: mongoose.Types.ObjectId;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const siteSchema = new Schema<ISite>(
   {
     siteUid: {
       type: String,
       unique: true,
+      required: true,
+      trim: true,
+      index: true,
     },
 
-    siteName: String,
+    siteName: {
+      type: String,
+      required: true,
+      trim: true,
+    },
 
-    location: String,
+    location: {
+      type: String,
+      trim: true,
+    },
 
     pincode: {
       type: String,
       trim: true,
     },
+
     state: {
       type: String,
       trim: true,
     },
+
     country: {
       type: String,
       trim: true,
@@ -26,8 +50,8 @@ const siteSchema = new Schema(
 
     createdBy: {
       type: Schema.Types.ObjectId,
-
       ref: "User",
+      required: true,
     },
   },
 
@@ -36,4 +60,4 @@ const siteSchema = new Schema(
   },
 );
 
-export default mongoose.model("Site", siteSchema);
+export default mongoose.model<ISite>("Site", siteSchema);

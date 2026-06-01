@@ -13,110 +13,66 @@ const ALL: Role[] = ["admin", "technician", "user"];
 /* -------------------- Routes -------------------- */
 
 // create device
-router.post(
-    "/createDevice",
-    allowRoles(ADMIN),
-    deviceController.createDevice,
-);
+router.post("/createDevice", allowRoles(ADMIN), deviceController.createDevice);
 
 // edit device
-router.post(
-    "/editDevice",
-    allowRoles(ADMIN),
-    deviceController.editDevice,
-);
+router.post("/editDevice", allowRoles(ADMIN), deviceController.editDevice);
 
 // delete device
-router.post(
-    "/deleteDevice",
-    deviceController.deleteDevice,
-);
+router.post("/deleteDevice", deviceController.deleteDevice);
+
+// get sensor graph data
+router.get("/sensor-data/:deviceId", deviceController.getSensorData);
 
 // latest device data
-router.post(
-    "/latestData",
-    deviceController.latestdevicedata,
-);
+router.post("/latestData", deviceController.latestdevicedata);
 
 // latest device data by date
-router.post(
-    "/latestDatabyDate",
-    deviceController.latestdevicedataBydate,
-);
+router.post("/latestDatabyDate", deviceController.latestdevicedataBydate);
 
 // single site device list
-router.get(
-    "/getdeviceListbysiteId/:siteId",
-    deviceController.getdeviceList,
-);
+router.get("/getdeviceListbysiteId/:siteId", deviceController.getdeviceList);
 
 // multiple siteIds device list
-router.post(
-    "/getdeviceListbysiteIds",
-    deviceController.getDeviceListBySiteIds,
-);
+router.post("/getdeviceListbysiteIds", deviceController.getDeviceListBySiteIds);
 
 // device list by siteId and userId
 router.post(
-    "/getdeviceListbysiteIdanduserId",
-    deviceController.getdeviceListByuserId,
+  "/getdeviceListbysiteIdanduserId",
+  deviceController.getdeviceListByuserId,
 );
 
 // download csv
-router.get(
-    "/downloadcsv",
-    deviceController.downloadcsv,
-);
+router.get("/downloadcsv", deviceController.downloadcsv);
 
 // generate report
-router.post(
-    "/generateReport",
-    deviceController.getCsv,
-);
+router.post("/generateReport", deviceController.getCsv);
 
 // get device by id
-router.get(
-    "/getDeviceById/:deviceId",
-    deviceController.getDeviceById,
-);
+router.get("/getDeviceById/:deviceId", deviceController.getDeviceById);
 
 // get device data by id
-router.get(
-    "/getDeviceDataById/:deviceId",
-    deviceController.getDeviceDataById,
-);
+router.get("/getDeviceDataById/:deviceId", deviceController.getDeviceDataById);
 
 // check device UID
-router.post(
-    "/checkDeviceUid",
-    deviceController.checkDeviceUid,
-);
+router.post("/checkDeviceUid", deviceController.checkDeviceUid);
 
 // delete device from user
-router.post(
-    "/deleteDevicefromuser",
-    deviceController.deleteDeviceFromUser,
-);
+router.post("/deleteDevicefromuser", deviceController.deleteDeviceFromUser);
 
 // get device by user id
-router.get(
-    "/getdevicebyuserId/:userId",
-    deviceController.getDeviceByuserId,
-);
+router.get("/getdevicebyuserId/:userId", deviceController.getDeviceByuserId);
 
 /* -------------------- Device Control -------------------- */
 
 // reboot device
-router.get(
-    "/reboot",
-    deviceController.deviceReboot,
-);
+router.get("/reboot", deviceController.deviceReboot);
 
 // shutdown device
 router.get(
-    "/shutdown",
-    allowRoles(ADMIN_TECH),
-    deviceController.deviceShutdown,
+  "/shutdown",
+  allowRoles(ADMIN_TECH),
+  deviceController.deviceShutdown,
 );
 
 export default router;

@@ -1,29 +1,16 @@
-import mongoose, {
-  Schema,
-  Document,
-} from "mongoose";
+import mongoose, { Schema, Document } from "mongoose";
 
-export interface IDeviceMsg
-  extends Document {
+interface IDataStream {
+  deviceNumber: string;
+  value: number;
+}
+
+export interface IDeviceMsg extends Document {
   deviceId: mongoose.Types.ObjectId;
 
-  msg: any;
+  sensorName: string;
 
-  date: Date;
-
-  time: string;
-
-  dateAndTime: string;
-
-  temperature?: number;
-
-  humidity?: number;
-
-  voltage?: number;
-
-  current?: number;
-
-  resistance?: number;
+  dataStreams: IDataStream[];
 
   timestamp: Date;
 
@@ -32,77 +19,57 @@ export interface IDeviceMsg
   updatedAt: Date;
 }
 
-const deviceMsgSchema =
-  new Schema<IDeviceMsg>(
-    {
-      deviceId: {
-        type: Schema.Types.ObjectId,
-        ref: "Device",
-        required: true,
-        index: true,
-      },
-
-      msg: {
-        type: Schema.Types.Mixed,
-        required: true,
-      },
-
-      date: {
-        type: Date,
-        required: true,
-        index: true,
-      },
-
-      time: {
-        type: String,
-      },
-
-      dateAndTime: {
-        type: String,
-      },
-
-      temperature: {
-        type: Number,
-      },
-
-      humidity: {
-        type: Number,
-      },
-
-      voltage: {
-        type: Number,
-      },
-
-      current: {
-        type: Number,
-      },
-
-      resistance: {
-        type: Number,
-      },
-
-      timestamp: {
-        type: Date,
-        default: Date.now,
-        index: true,
-      },
+const deviceMsgSchema = new Schema<IDeviceMsg>(
+  {
+    deviceId: {
+      type: Schema.Types.ObjectId,
+      ref: "Device",
+      required: true,
+      index: true,
     },
 
-    {
-      timestamps: true,
+    sensorName: {
+      type: String,
+      required: true,
+      index: true,
     },
-  );
 
-/* Compound Index */
+    dataStreams: [
+      {
+        sensorNumber: {
+          type: String,
+          required: true,
+        },
+
+        value: {
+          type: Number,
+          required: true,
+        },
+      },
+    ],
+
+    timestamp: {
+      type: Date,
+      default: Date.now,
+      index: true,
+    },
+  },
+
+  {
+    timestamps: true,
+  },
+);
+
 deviceMsgSchema.index({
   deviceId: 1,
   timestamp: -1,
 });
 
-const DeviceMsg =
-  mongoose.model<IDeviceMsg>(
-    "DeviceMsg",
-    deviceMsgSchema,
-  );
+deviceMsgSchema.index({
+  sensorName: 1,
+  timestamp: -1,
+});
+
+const DeviceMsg = mongoose.model<IDeviceMsg>("DeviceMsg", deviceMsgSchema);
 
 export default DeviceMsg;

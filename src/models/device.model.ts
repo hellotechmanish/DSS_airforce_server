@@ -1,33 +1,34 @@
-import mongoose, {
-  Schema,
-  Document,
-} from "mongoose";
+import mongoose, { Schema, Document } from "mongoose";
 
-export interface IDevice
-  extends Document {
+export interface IDevice extends Document {
   nodeUid: string;
 
   deviceName: string;
 
   siteId: mongoose.Types.ObjectId;
 
-  vmrSensors: number;
+  sensorCounts: {
+    temperature: number;
+    humidity: number;
+    vmr: number;
+    res: number;
+    spd: number;
+    ner: number;
+  };
 
-  resSensors: number;
+  thresholds: {
+    vmr: {
+      R?: number;
+      Y?: number;
+      B?: number;
+    };
 
-  spdSensors: number;
+    res: number;
 
-  nerSensors: number;
+    spd: number;
 
-  vmrSensorsThreshold: any;
-
-  resSensorsThreshold: number;
-
-  spdSensorsThreshold: number;
-
-  nerSensorsThreshold: number;
-
-  threshold: number;
+    ner: number;
+  };
 
   isActive: boolean;
 
@@ -36,109 +37,94 @@ export interface IDevice
   updatedAt: Date;
 }
 
-const deviceSchema =
-  new Schema<IDevice>(
-    {
-      nodeUid: {
-        type: String,
+const deviceSchema = new Schema<IDevice>(
+  {
+    nodeUid: {
+      type: String,
+      unique: true,
+      required: true,
+      trim: true,
+      index: true,
+    },
 
-        unique: true,
+    deviceName: {
+      type: String,
+      required: true,
+      trim: true,
+    },
 
-        required: true,
+    siteId: {
+      type: Schema.Types.ObjectId,
+      ref: "Site",
+      required: true,
+      index: true,
+    },
 
-        trim: true,
-
-        index: true,
-      },
-
-      deviceName: {
-        type: String,
-
-        required: true,
-
-        trim: true,
-      },
-
-      siteId: {
-        type: Schema.Types.ObjectId,
-
-        ref: "Site",
-
-        required: true,
-
-        index: true,
-      },
-
-      vmrSensors: {
+    sensorCounts: {
+      temperature: {
         type: Number,
-
         default: 0,
       },
 
-      resSensors: {
+      humidity: {
         type: Number,
-
         default: 0,
       },
 
-      spdSensors: {
+      vmr: {
         type: Number,
-
         default: 0,
       },
 
-      nerSensors: {
+      res: {
         type: Number,
-
         default: 0,
       },
 
-      vmrSensorsThreshold: {
-        type: Schema.Types.Mixed,
-
-        default: {},
-      },
-
-      resSensorsThreshold: {
+      spd: {
         type: Number,
-
         default: 0,
       },
 
-      spdSensorsThreshold: {
+      ner: {
         type: Number,
-
         default: 0,
-      },
-
-      nerSensorsThreshold: {
-        type: Number,
-
-        default: 0,
-      },
-
-      threshold: {
-        type: Number,
-
-        default: 0,
-      },
-
-      isActive: {
-        type: Boolean,
-
-        default: true,
       },
     },
 
-    {
-      timestamps: true,
-    },
-  );
+    thresholds: {
+      vmr: {
+        R: Number,
+        Y: Number,
+        B: Number,
+      },
 
-const Device =
-  mongoose.model<IDevice>(
-    "Device",
-    deviceSchema,
-  );
+      res: {
+        type: Number,
+        default: 0,
+      },
+
+      spd: {
+        type: Number,
+        default: 0,
+      },
+
+      ner: {
+        type: Number,
+        default: 0,
+      },
+    },
+
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+  },
+  {
+    timestamps: true,
+  },
+);
+
+const Device = mongoose.model<IDevice>("Device", deviceSchema);
 
 export default Device;

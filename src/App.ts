@@ -1,7 +1,7 @@
 import express from "express";
 import type { Application } from "express";
 import dotenv from "dotenv";
-
+import "./config/mqtt.js";
 // routes
 import authRoutes from "./routes/auth.routes.js";
 
@@ -11,6 +11,8 @@ import { checkauth } from "./middleware/checkauth.js";
 // db
 import connectDB from "./config/db.js";
 import corsConfig from "./config/cors.js";
+// import { startMqttScheduler } from "./config/mqtt-scheduler.js";
+import startScheduler from "./config/mqtt-scheduler.js";
 import userRoutes from "./routes/user.routes.js";
 import siteroutes from "./routes/site.routes.js";
 import deviceroutes from "./routes/device.routes.js";
@@ -55,6 +57,7 @@ const startServer = async (): Promise<void> => {
     await connectDB();
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
+      // startScheduler();
     });
   } catch (error) {
     console.error(error);

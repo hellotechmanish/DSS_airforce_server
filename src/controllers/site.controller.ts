@@ -11,7 +11,10 @@ export const createSite = async (
   res: Response,
 ): Promise<void> => {
   try {
-    const response = await siteService.createSite(req.body, req.user);
+    const user = req.user;
+    console.log("user login", user);
+
+    const response = await siteService.createSite(req.body, user);
 
     res.status(201).json(response);
   } catch (error: any) {
@@ -93,7 +96,9 @@ export const getSiteByUserId = async (
   res: Response,
 ): Promise<void> => {
   try {
-    const response = await siteService.getSiteByUserId(req.params.userId as string);
+    const response = await siteService.getSiteByUserId(
+      req.params.userId as string,
+    );
     res.status(200).json(response);
   } catch (error: any) {
     res.status(500).json({

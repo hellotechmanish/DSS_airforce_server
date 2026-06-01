@@ -4,7 +4,6 @@ import Device from "../models/device.model.js";
 import Alarm from "../models/alarm.model.js";
 
 interface UserType {
-  _id: mongoose.Types.ObjectId;
   id?: string;
   role?: string;
 }
@@ -13,6 +12,10 @@ interface UserType {
 export const createSite = async (payload: any, user: UserType) => {
   const { siteName, location, pincode, country, state } = payload;
   const siteUid = payload.siteUid ?? payload.siteId;
+  console.log(
+    "data  sites create service",
+    new mongoose.Types.ObjectId(user.id),
+  );
 
   if (!siteUid) {
     throw new Error("Site UID is required");
@@ -31,7 +34,7 @@ export const createSite = async (payload: any, user: UserType) => {
     pincode,
     country,
     state,
-    createdBy: user._id,
+    createdBy: new mongoose.Types.ObjectId(user.id),
   });
 
   return {
@@ -198,7 +201,9 @@ export const checkSiteUid = async (payload: any) => {
 
   return {
     success: true,
-    message: resp ? "This Site ID is not available" : "This Site ID is available",
+    message: resp
+      ? "This Site ID is not available"
+      : "This Site ID is available",
     status: !resp,
   };
 };
@@ -209,7 +214,7 @@ export const searchSite = async (searchQuery: string, user: UserType) => {
 
   if (user.role === "user") {
     sites = await Site.find({
-      userId: { $in: [user._id] },
+      userId: { $in: [user.id] },
       $or: [
         {
           siteId: {
