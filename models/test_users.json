@@ -1,0 +1,18 @@
+[{
+  "_id": {
+    "$oid": "69d765f3f70eaded35305166"
+  },
+  "fullName": "Admin User",
+  "uid": "admin123",
+  "password": "$2b$10$XhEi9KYBIMN4ugXr.GcpPeU1GOMQPkjpFjFS6Tg0i08eGIqNbClg6",
+  "role": "admin",
+  "isActive": true,
+  "deviceSensors": [],
+  "createdAt": {
+    "$date": "2026-03-22T16:39:37.564Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-14T18:10:16.204Z"
+  },
+  "__v": 0
+}]

@@ -35,21 +35,7 @@ client.on("connect", function () {
 // getChannels;
 let DataObject = {};
 
-// DataObject Example
-// {
-//   '1401': {
-//     RES: { DEVICE_TYPE: 'RES', DATASTREAMS: [Array] },
-//     NER: { DEVICE_TYPE: 'NER', DATASTREAMS: [] },
-//     SPD: { DEVICE_TYPE: 'SPD', DATASTREAMS: [] },
-//     VMR: { DEVICE_TYPE: 'VMR', DATASTREAMS: [] }
-//   },
-//   '1402': {
-//     RES: { DEVICE_TYPE: 'RES', DATASTREAMS: [Array] },
-//     NER: { DEVICE_TYPE: 'NER', DATASTREAMS: [] },
-//     SPD: { DEVICE_TYPE: 'SPD', DATASTREAMS: [] },
-//     VMR: { DEVICE_TYPE: 'VMR', DATASTREAMS: [] }
-//   }
-// }
+
 
 let temp = 0; // Temperature of device
 let hum = 0; // Humidity of device
@@ -182,7 +168,7 @@ client.on("message", async function (topic, message) {
     DataObject[nodeId]?.NER?.DATASTREAMS &&
     DataObject[nodeId].NER.DATASTREAMS.length + 1 <= DeviceExists.nerSensors
   ) {
-    pushData("NER", parsedData[key].toFixed(2));
+    pushData("NER", parsedData[key]?.toFixed(2));
   }
 
   // ================= SPD =================

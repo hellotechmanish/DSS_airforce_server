@@ -1,91 +1,3 @@
-// const mqtt = require("mqtt");
-
-// const brokerUrl = "mqtt://localhost:1883";
-// const topic = "b25saW5lcmVzbW9uaXRvcg==";
-
-// const clientId = "node_sim_" + Math.random().toString(16).substring(2, 8);
-
-// const nodeIds = [1001, 1002];
-
-// // 🔹 Random generators
-// function getRandomRES() {
-//   return Math.floor(Math.random() * 100);
-// }
-
-// function getRandomNER() {
-//   return (Math.random() * 1).toFixed(3); // more precision
-// }
-
-// function getRandomVMR() {
-//   return (Math.random() * 10).toFixed(2); // 0–10
-// }
-
-// function getRandomSPD() {
-//   return Math.floor(Math.random() * 3000); // rpm type
-// }
-
-// function getRandomTemp() {
-//   return (20 + Math.random() * 15).toFixed(1);
-// }
-
-// function getRandomHum() {
-//   return (30 + Math.random() * 50).toFixed(1);
-// }
-
-// // 🔹 Encode
-// function encodeData(obj) {
-//   return Buffer.from(JSON.stringify(obj)).toString("base64");
-// }
-
-// const client = mqtt.connect(brokerUrl, { clientId });
-
-// client.on("connect", () => {
-//   console.log("✅ Connected to MQTT");
-
-//   setInterval(() => {
-//     nodeIds.forEach((nodeId) => {
-//       publishNodeData(nodeId);
-//     });
-//   }, 5000);
-// });
-
-// function publishNodeData(nodeId) {
-//   const messages = [
-//     { initialStart: 1 },
-
-//     { RES_0: getRandomRES(), alarm: 0, start: 1 },
-
-//     { NER_0: parseFloat(getRandomNER()), alarm: 0, start: 1 },
-
-//     { VMR_0: parseFloat(getRandomVMR()), alarm: 0, start: 1 },
-
-//     { SPD_0: getRandomSPD(), alarm: 0, start: 1 },
-
-//     {
-//       Temp: parseFloat(getRandomTemp()),
-//       Hum: parseFloat(getRandomHum()),
-//       start: 1,
-//     },
-
-//     { end: 1 },
-//   ];
-
-//   messages.forEach((msg) => {
-//     const payload = JSON.stringify({
-//       Node_Id: nodeId,
-//       data: encodeData(msg),
-//     });
-
-//     client.publish(topic, payload);
-
-//     console.log(`📤 Node ${nodeId} →`, payload);
-//   });
-// }
-
-// client.on("error", (err) => {
-//   console.error("❌ MQTT Error:", err.message);
-// });
-
 const mqtt = require("mqtt");
 
 const brokerUrl = "mqtt://localhost:1883";
@@ -94,10 +6,11 @@ const topic = "b25saW5lcmVzbW9uaXRvcg==";
 const clientId = "node_sim_" + Math.random().toString(16).substring(2, 8);
 
 // ✅ Only 2 nodes
-const nodeIds = [
-  1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009, 1010, 1011, 1012, 1013,
-  1014, 1015, 1016, 1017, 1018,
-];
+// const nodeIds = [
+//   1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009, 1010, 1011, 1012, 1013,
+//   1014, 1015, 1016, 1017, 1018,
+// ];
+const nodeIds = [1001];
 
 // 🔹 Random generators
 const getRandomRES = () => Math.floor(Math.random() * 10);
