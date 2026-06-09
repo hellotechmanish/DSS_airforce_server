@@ -56,6 +56,12 @@ function publishNodeData(nodeId) {
       alarm: 0,
       start: 1,
     },
+    // 🔸 RES1 sensor
+    {
+      RES_1: getRandomRES(),
+      alarm: 0,
+      start: 1,
+    },
 
     // 🔸 NER sensor
     {

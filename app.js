@@ -27,9 +27,9 @@ app.use(helmet.frameguard({ action: "deny" }));
 app.use(helmet());
 app.use(
   cors({
-    // origin: "http://localhost:3000",
+    origin: "http://localhost:3000",
 
-    origin: ["http://localhost:3000", "http://192.168.29.140:3000"],
+    // origin: ["http://localhost:3000", "http://192.168.29.140:3000"],
   }),
 );
 
@@ -52,6 +52,7 @@ app.use("/api/alarm", checkauth, require("./routes/alarmRoutes"));
 
 // mongoose.set("strictQuery", false); // prev
 mongoose.set("strictQuery", true);
+console.log("MONGO_URI:", process.env.MONGO_URI);
 
 mongoose
   .connect(process.env.MONGO_URI, {
