@@ -35,8 +35,6 @@ client.on("connect", function () {
 // getChannels;
 let DataObject = {};
 
-
-
 let temp = 0; // Temperature of device
 let hum = 0; // Humidity of device
 
@@ -314,7 +312,7 @@ client.on("message", async function (topic, message) {
         ),
       ]);
 
-      console.log("✅ Data saved + threshold checked");
+      console.log("   Data saved + threshold checked");
     } catch (err) {
       console.log("DB error =>", err.message);
     }
@@ -959,11 +957,9 @@ exports.deleteDevice = async (req, res, next) => {
 
 // ========================= Today latest device Graph data ======================== //
 exports.latestdevicedata = async (req, res) => {
-  const { sensorName, deviceNumber, deviceId, startDate, endDate } = req.body;
+  const { sensorName, deviceId } = req.body; // Removed startDate, endDate from body requirements
 
-  // console.log(":>>>>>>>>>>>>", deviceNumber);
-
-  if (!sensorName || !deviceId || !startDate || !endDate) {
+  if (!sensorName || !deviceId) {
     return res.status(400).json({ msg: "Please provide all required data" });
   }
 
@@ -977,11 +973,15 @@ exports.latestdevicedata = async (req, res) => {
         $match: {
           deviceId: new mongoose.Types.ObjectId(deviceId),
           "msg.DEVICE_TYPE": sensorName,
-          date: {
-            $gte: startDate,
-            $lte: endDate,
-          },
         },
+      },
+      // 1. Newest records ko pehle lane ke liye createdAt par descending sort lagaya
+      {
+        $sort: { createdAt: -1 }, 
+      },
+      // 2. Sirf top 50 rows fetch karne ke liye pipeline limit lagayi
+      {
+        $limit: 50,
       },
     ]);
 

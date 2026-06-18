@@ -1,12 +1,12 @@
 const express = require("express");
 const deviceController = require("../controllers/deviceController");
-const allowRoles = require("../middleware/allowRoles");
+const allowRoles = require("../config/allowRoles");
 
 const routes = express.Router();
 const ADMIN = ["admin"];
 const ADMIN_TECH = ["admin", "technician"];
 const ALL = ["admin", "technician", "user"];
-/* 🔐 Already protected by app.js */
+/*     Already protected by app.js */
 
 routes.post("/createDevice", allowRoles(ADMIN), deviceController.createDevice);
 routes.post("/editDevice", allowRoles(ADMIN), deviceController.editDevice);

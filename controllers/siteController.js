@@ -397,7 +397,7 @@ exports.getAllSiteResistance = async (req, res) => {
 // ============================= GET ALL getAllSiteTemp and Device Data ================================== //
 exports.getAllSiteTemp = async (req, res) => {
   try {
-    // ✅ query params
+    //    query params
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
 
@@ -439,7 +439,7 @@ exports.getAllSiteTemp = async (req, res) => {
         },
       },
 
-      // ✅ pagination + total count
+      //    pagination + total count
       {
         $facet: {
           data: [{ $skip: skip }, { $limit: limit }],
@@ -453,7 +453,7 @@ exports.getAllSiteTemp = async (req, res) => {
     const data = result[0]?.data || [];
     const total = result[0]?.totalCount[0]?.count || 0;
 
-    // ✅ debug log (important)
+    //    debug log (important)
     console.log("Pagination Info:", {
       page,
       limit,

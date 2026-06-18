@@ -1,14 +1,14 @@
 const express = require("express");
 const siteController = require("../controllers/siteController");
-const validate = require("../middleware/validationMethod");
-const allowRoles = require("../middleware/allowRoles");
+const validate = require("../config/validationMethod");
+const allowRoles = require("../config/allowRoles");
 
 const routes = express.Router();
 const ADMIN = ["admin"];
 const ADMIN_TECH = ["admin", "technician"];
 const ALL = ["admin", "technician", "user"];
 
-/* 🔐 Already protected by app.js */
+/*     Already protected by app.js */
 
 routes.post("/createSite", allowRoles(ADMIN), siteController.createSite);
 routes.post("/editSite", allowRoles(ADMIN), siteController.editSite);

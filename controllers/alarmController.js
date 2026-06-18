@@ -106,14 +106,14 @@ exports.getAlarmStatus = async (req, res) => {
     const deviceData = await Device.find();
 
     console.log("AlarmStatus:", data);
-    // ✅ FIX 1: handle null
+    //    FIX 1: handle null
     if (!data) {
       data = { status: false, sound: false };
     } else {
       data.sound = false;
     }
 
-    // ✅ FIX 2: only run loop if status is true
+    //    FIX 2: only run loop if status is true
     if (data.status) {
       for (let item of deviceData) {
         if (
@@ -126,7 +126,7 @@ exports.getAlarmStatus = async (req, res) => {
           item?.nerSensorsThreshold <= item?.NerValues?.DATASTREAMS?.[0]?.value
         ) {
           data.sound = true;
-          break; // ✅ optimization: stop once true
+          break; //    optimization: stop once true
         }
       }
     }
@@ -189,8 +189,15 @@ exports.getAlarmData = async (req, res, next) => {
     }
 
     // Validate sort input
-    const allowedSortFields = ["createdAt", "alarmValue", "thresholdValue", "SensorName"];
-    const safeSortBy = allowedSortFields.includes(sortBy) ? sortBy : "createdAt";
+    const allowedSortFields = [
+      "createdAt",
+      "alarmValue",
+      "thresholdValue",
+      "SensorName",
+    ];
+    const safeSortBy = allowedSortFields.includes(sortBy)
+      ? sortBy
+      : "createdAt";
     const safeSortType = sortType === 1 || sortType === -1 ? sortType : -1;
 
     let arrQuery = [
@@ -460,9 +467,7 @@ exports.filterAlarm = async (req, res, next) => {
           deviceId,
           SensorName: { $regex: /^[P][H]/, $options: "m" },
         });
-        return res
-          .status(200)
-          .json({ msg: filteredAlarm, lengthData: length });
+        return res.status(200).json({ msg: filteredAlarm, lengthData: length });
       }
 
       if (sensorName === "RES") {
@@ -487,9 +492,7 @@ exports.filterAlarm = async (req, res, next) => {
           deviceId,
           SensorName: { $regex: /^[R]/, $options: "m" },
         });
-        return res
-          .status(200)
-          .json({ msg: filteredAlarm, lengthData: length });
+        return res.status(200).json({ msg: filteredAlarm, lengthData: length });
       }
       filteredAlarm = await Alarm.find({
         deviceId,
@@ -512,9 +515,7 @@ exports.filterAlarm = async (req, res, next) => {
         deviceId,
         SensorName: { $regex: sensorName, $options: "i" },
       });
-      return res
-        .status(200)
-        .json({ msg: filteredAlarm, lengthData: length });
+      return res.status(200).json({ msg: filteredAlarm, lengthData: length });
     }
   } catch (error) {
     console.log("error from filterAlarm ", error);

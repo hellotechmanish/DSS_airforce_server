@@ -41,7 +41,7 @@ print("🔧 Sending raw frame:", ' '.join(f'{b:02X}' for b in raw_frame))
 try:
     with serial.Serial(PORT, BAUDRATE, bytesize=8, parity='N', stopbits=1, timeout=2) as ser:
         ser.write(raw_frame)
-        print("✅ Frame sent successfully.")
+        print("   Frame sent successfully.")
 except Exception as e:
     print(f"❌ Error sending frame: {e}")
     exit()
@@ -78,7 +78,7 @@ try:
     else:
         read_value = result.registers[0]
         if read_value == NEW_SLAVE_ID:
-            print(f"✅ Verification successful: Slave ID correctly set to {read_value}.")
+            print(f"   Verification successful: Slave ID correctly set to {read_value}.")
         else:
             print(f"⚠️ Mismatch: Read value = {read_value}, expected = {NEW_SLAVE_ID}")
 finally:

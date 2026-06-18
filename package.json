@@ -20,6 +20,7 @@
   "homepage": "https://bitbucket.org/rahul098/gnlan_backend#readme",
   "dependencies": {
     "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "csv-writer": "^1.6.0",
     "dotenv": "^16.0.3",
@@ -36,6 +37,7 @@
     "node-schedule": "^2.1.0",
     "nodemon": "^2.0.20",
     "path": "^0.12.7",
+    "redis": "^4.7.0",
     "uuid": "^9.0.0"
   }
 }

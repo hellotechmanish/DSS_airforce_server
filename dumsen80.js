@@ -5,7 +5,7 @@ const topic = "b25saW5lcmVzbW9uaXRvcg==";
 
 const clientId = "node_sim_" + Math.random().toString(16).substring(2, 8);
 
-// ✅ Only 2 nodes
+//    Only 2 nodes
 // const nodeIds = [
 //   1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009, 1010, 1011, 1012, 1013,
 //   1014, 1015, 1016, 1017, 1018,
@@ -34,7 +34,7 @@ const encodeData = (obj) => {
 const client = mqtt.connect(brokerUrl, { clientId });
 
 client.on("connect", () => {
-  console.log("✅ Connected to MQTT Broker");
+  console.log("   Connected to MQTT Broker");
 
   // 🔁 Loop every 5 sec
   setInterval(() => {

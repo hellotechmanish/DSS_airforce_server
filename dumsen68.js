@@ -41,7 +41,7 @@ const baseMessages = [
 
 // Array of specific Node IDs
 // const nodeIds = [1011, 1012, 1013, 1014, 1015, 1016, 1017, 1018, 1019, 1020];
-const nodeIds = [1001,1002];
+const nodeIds = [1001, 1002];
 
 // Utility → timestamp for logs
 function logTime() {
@@ -56,7 +56,7 @@ const client = mqtt.connect(brokerUrl, {
 });
 
 client.on("connect", () => {
-  console.log(`[${logTime()}] ✅ Connected to MQTT broker`);
+  console.log(`[${logTime()}]    Connected to MQTT broker`);
   console.log(`[${logTime()}] Client ID → ${clientId}`);
   console.log(`[${logTime()}] Topic → ${topic}`);
 
@@ -70,7 +70,7 @@ client.on("connect", () => {
 // Function to publish messages for all Node IDs sequentially
 function publishMessagesForNodes(currentNodeIndex) {
   if (currentNodeIndex >= nodeIds.length) {
-    console.log(`[${logTime()}] ✅ Finished one round of Node IDs.\n`);
+    console.log(`[${logTime()}]    Finished one round of Node IDs.\n`);
     return;
   }
 
@@ -101,7 +101,7 @@ function publishMessagesForNodes(currentNodeIndex) {
             );
           } else {
             console.log(
-              `[${logTime()}] ✅ Published → Node ${currentNodeId}, Msg ${messageIndex + 1}`,
+              `[${logTime()}]    Published → Node ${currentNodeId}, Msg ${messageIndex + 1}`,
             );
             console.log(`Payload: ${message}\n`);
           }

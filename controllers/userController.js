@@ -136,7 +136,7 @@ exports.login = async (req, res, next) => {
 // =========================== RESET Password ========================== //
 exports.resetPassword = async (req, res) => {
   const { password, userId } = req.body;
-  
+
   console.log("req.body", req.body);
 
   try {
@@ -163,10 +163,10 @@ exports.resetPassword = async (req, res) => {
       });
     }
 
-    // ✅ NO HASH HERE
+    //    NO HASH HERE
     user.password = password;
 
-    await user.save(); // 🔐 pre-save hook will hash
+    await user.save(); //     pre-save hook will hash
 
     return res.status(200).json({
       msg: "Password Updated Successfully",
@@ -299,13 +299,13 @@ exports.assignSite = async (req, res) => {
   console.log("Incoming:", req.body);
 
   try {
-    // ✅ 1. Assign multiple sites
+    //    1. Assign multiple sites
     await Site.updateMany(
       { _id: { $in: siteIds } },
       { $addToSet: { userId: userId } },
     );
 
-    // ✅ 2. Assign devices (IMPORTANT)
+    //    2. Assign devices (IMPORTANT)
     if (deviceIds && deviceIds.length > 0) {
       await Device.updateMany(
         { _id: { $in: deviceIds } },

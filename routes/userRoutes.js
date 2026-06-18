@@ -1,6 +1,6 @@
 const express = require("express");
 const userController = require("../controllers/userController");
-const allowRoles = require("../middleware/allowRoles");
+const allowRoles = require("../config/allowRoles");
 
 const routes = express.Router();
 
@@ -17,9 +17,9 @@ routes.get(
   allowRoles(ADMIN_TECH),
   userController.getUserList,
 );
-routes.post("/editUser",allowRoles(ADMIN_TECH), userController.editUser);
-routes.post("/deleteUser",allowRoles(ADMIN_TECH), userController.deleteUser);
-routes.post("/assignSite",allowRoles(ALL), userController.assignSite);
+routes.post("/editUser", allowRoles(ADMIN_TECH), userController.editUser);
+routes.post("/deleteUser", allowRoles(ADMIN_TECH), userController.deleteUser);
+routes.post("/assignSite", allowRoles(ALL), userController.assignSite);
 routes.post("/checkUserUid", userController.checkUserUid);
 routes.post("/assignDeviceSensor", userController.assignDeviceSensor);
 routes.post("/getassignSensor", userController.getassignSensor);

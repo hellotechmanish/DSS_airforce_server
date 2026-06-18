@@ -1,6 +1,7 @@
 const express = require("express");
 const mongoose = require("mongoose");
 var cors = require("cors");
+const cookieParser = require("cookie-parser");
 const DeviceMsg = require("./models/deviceMsg");
 const Device = require("./models/device");
 const util = require("util");
@@ -11,7 +12,7 @@ const moment = require("moment");
 const getRangebetweenDates = require("./helperFunction/getdatelist");
 var ObjectId = require("mongodb").ObjectId;
 const morgan = require("morgan");
-const { checkauth } = require("./middleware/checkauth");
+const { checkauth } = require("./config/middleware");
 const helmet = require("helmet");
 
 const app = express();
@@ -20,6 +21,7 @@ const PORT = process.env.PORT || 5009;
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 // app.use(cors("*"));
 app.use(helmet.frameguard({ action: "deny" }));
@@ -28,7 +30,7 @@ app.use(helmet());
 app.use(
   cors({
     origin: "http://localhost:3000",
-
+    credentials: true,
     // origin: ["http://localhost:3000", "http://192.168.29.140:3000"],
   }),
 );
@@ -43,7 +45,7 @@ app.get("/api", (req, res) => {
 
 app.use("/api/auth", require("./routes/auth.routes"));
 
-/* 🔐 PROTECTED USER APIs */
+/*     PROTECTED USER APIs */
 app.use("/api/user", checkauth, require("./routes/userRoutes"));
 app.use("/api/site", checkauth, require("./routes/siteRoutes"));
 
