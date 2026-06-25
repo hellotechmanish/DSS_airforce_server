@@ -1651,7 +1651,7 @@ exports.deviceShutdown = async (req, res, next) => {
   res.send("shutting down");
 };
 
-// ============================== Device Reboot ================================ //
+// ============================== Device Reboot for only ubuntugit ================================ //
 exports.deviceReboot = async (req, res, next) => {
   console.log("System reboot signal intercepted...");
 
