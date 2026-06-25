@@ -37,7 +37,7 @@ routes.post("/deleteDevicefromuser", deviceController.deleteDeviceFromUser);
 routes.get("/getdevicebyuserId/:userId", deviceController.getDeviceByuserId);
 
 // ============ Device Control ============
-routes.get("/reboot", deviceController.deviceReboot);
+routes.post("/reboot", deviceController.deviceReboot);
 routes.get(
   "/shutdown",
   allowRoles(ADMIN_TECH),
