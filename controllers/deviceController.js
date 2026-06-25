@@ -812,6 +812,8 @@ exports.createDevice = async (req, res, next) => {
       siteId,
       deviceName,
       nodeUid,
+      temp,
+      humidity,
       vmrSensors,
       resSensors,
       spdSensors,
@@ -844,6 +846,8 @@ exports.createDevice = async (req, res, next) => {
       siteId,
       deviceName,
       nodeUid,
+      temp: temp ? Number(temp) : 0,
+      humidity: humidity ? Number(humidity) : 0,
       vmrSensors,
       resSensors,
       spdSensors,
@@ -977,11 +981,11 @@ exports.latestdevicedata = async (req, res) => {
       },
       // 1. Newest records ko pehle lane ke liye createdAt par descending sort lagaya
       {
-        $sort: { createdAt: -1 }, 
+        $sort: { createdAt: -1 },
       },
-      // 2. Sirf top 50 rows fetch karne ke liye pipeline limit lagayi
+      // 2. Sirf top 20 rows fetch karne ke liye pipeline limit lagayi
       {
-        $limit: 50,
+        $limit: 20,
       },
     ]);
 
@@ -1647,17 +1651,34 @@ exports.deviceShutdown = async (req, res, next) => {
   res.send("shutting down");
 };
 
-// ============================== Device Reboot ================================ //
+// ============================== Device Reboot for only ubuntugit ================================ //
 exports.deviceReboot = async (req, res, next) => {
-  console.log("Reboot triggered");
+  console.log("System reboot signal intercepted...");
 
-  let { stdout } = exec("pkill -o firefox");
-  if (stdout) {
-    exec("echo 123456 | sudo -S reboot");
-  }
+  // 1. Send the response back to the frontend immediately so the connection doesn't hang or timeout
+  res.status(200).json({
+    success: true,
+    msg: "Reboot command executed successfully. System is going down now.",
+  });
 
-  // exec("pkill -o firefox",(e,i) =>{
-  //     exec("reboot");
-  //   })
-  res.send("Rebooting");
+  // 2. Execute the process termination sequence asynchronously
+  exec("pkill -o firefox", (error, stdout, stderr) => {
+    if (error) {
+      console.log(
+        `Firefox kill warning (likely not running): ${error.message}`,
+      );
+    }
+
+    console.log("Triggering hard system reboot pipeline...");
+
+    // Pipe the password via stdin safely or rely on NOPASSWD configuration
+    exec(
+      "echo 123456 | sudo -S reboot",
+      (rebootError, rebootStdout, rebootStderr) => {
+        if (rebootError) {
+          console.error(`Reboot failure exception: ${rebootError.message}`);
+        }
+      },
+    );
+  });
 };
