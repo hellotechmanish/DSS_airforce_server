@@ -38,7 +38,7 @@ routes.get("/getdevicebyuserId/:userId", deviceController.getDeviceByuserId);
 
 // ============ Device Control ============
 routes.post("/reboot", deviceController.deviceReboot);
-routes.get(
+routes.post(
   "/shutdown",
   allowRoles(ADMIN_TECH),
   deviceController.deviceShutdown,
