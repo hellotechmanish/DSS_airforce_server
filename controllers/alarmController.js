@@ -91,7 +91,7 @@ exports.updateStatus = async (req, res) => {
       await AlarmStatus.create({ status: false });
     }
 
-    return res.status(200).json({ msg: "Status Updated", success: false });
+    return res.status(200).json({ msg: "Status Updated", success: true });
   } catch (err) {
     console.log("Error is ", err);
     return res.status(500).json({ msg: err.message, success: false });
@@ -101,16 +101,24 @@ exports.updateStatus = async (req, res) => {
 /* It is used to cancelled the alarm sound */
 exports.getAlarmStatus = async (req, res) => {
   try {
-    const data = await AlarmStatus.findOne({}).select("-_id status").lean();
-    // const count = await Alarm.countDocuments({ isRead: true });
+    let data = await AlarmStatus.findOne({}).select("-_id status").lean();
+
     const deviceData = await Device.find();
-    // console.log("Check deviceData", JSON.stringify(deviceData));
-    console.log(data);
-    data.sound = false;
-    if (data?.status) {
+
+    console.log("AlarmStatus:", data);
+    //    FIX 1: handle null
+    if (!data) {
+      data = { status: false, sound: false };
+    } else {
+      data.sound = false;
+    }
+
+    //    FIX 2: only run loop if status is true
+    if (data.status) {
       for (let item of deviceData) {
         if (
-          item?.vmrSensors <= item?.VmrValues?.DATASTREAMS?.[0]?.value ||
+          item?.vmrSensorsThreshold <=
+            item?.VmrValues?.DATASTREAMS?.[0]?.value ||
           item?.resSensorsThreshold <=
             item?.ResValues?.DATASTREAMS?.[0]?.value ||
           item?.spdSensorsThreshold <=
@@ -118,11 +126,12 @@ exports.getAlarmStatus = async (req, res) => {
           item?.nerSensorsThreshold <= item?.NerValues?.DATASTREAMS?.[0]?.value
         ) {
           data.sound = true;
+          break; //    optimization: stop once true
         }
       }
     }
 
-    return res.status(200).json({ data, success: false });
+    return res.status(200).json({ data, success: true });
   } catch (err) {
     console.log("Error is ", err);
     return res.status(500).json({ msg: err.message, success: false });
@@ -166,7 +175,7 @@ exports.getAlarmData = async (req, res, next) => {
       };
     }
 
-    // if (req.user.role === 2) {
+    // if (req.user.role === "user") {
     // }
 
     if (sensorName) {
@@ -178,6 +187,18 @@ exports.getAlarmData = async (req, res, next) => {
         query.SensorName = { $regex: sensorName, $options: "m" };
       }
     }
+
+    // Validate sort input
+    const allowedSortFields = [
+      "createdAt",
+      "alarmValue",
+      "thresholdValue",
+      "SensorName",
+    ];
+    const safeSortBy = allowedSortFields.includes(sortBy)
+      ? sortBy
+      : "createdAt";
+    const safeSortType = sortType === 1 || sortType === -1 ? sortType : -1;
 
     let arrQuery = [
       {
@@ -210,7 +231,7 @@ exports.getAlarmData = async (req, res, next) => {
         $match: query,
       },
       {
-        $sort: { [sortBy]: sortType },
+        $sort: { [safeSortBy]: safeSortType },
       },
       {
         $skip: skip,
@@ -241,13 +262,17 @@ exports.getAlarmData = async (req, res, next) => {
     let length = await Alarm.aggregate([
       ...arrQuery,
       {
+        $match: query,
+      },
+      {
         $project: {
           _id: 1,
         },
       },
     ]);
     length = length?.length;
-    await Alarm.updateMany({ isRead: true }, { $set: { isRead: false } });
+    // Mark alarms retrieved as read (was inverted and set true -> false)
+    await Alarm.updateMany({ isRead: false }, { $set: { isRead: true } });
     // let alarm = await Alarm.find(query)
     //   .populate([
     //     {
@@ -268,7 +293,9 @@ exports.getAlarmData = async (req, res, next) => {
     return res.status(200).json({ lengthData: length, data, status: true });
   } catch (error) {
     console.log("error from getAllAlarm", error);
-    return res.status(500).json({ msg: error.message });
+    res.status(500).json({
+      message: "Something went wrong",
+    });
   }
 };
 
@@ -282,7 +309,7 @@ exports.getAllAlarmDataForDownload = async (req, res) => {
       },
     };
 
-    if (req.user.role === 2) {
+    if (req.user.role === "user") {
       query = {
         deviceId: { $in: deviceId },
       };
@@ -335,7 +362,7 @@ exports.getAllAlarm = async (req, res, next) => {
 
   try {
     let alarm;
-    if (req.user.role === 2) {
+    if (req.user.role === "user") {
       alarm = await Alarm.find({
         deviceId: { $in: deviceId },
       })
@@ -378,7 +405,9 @@ exports.getAllAlarm = async (req, res, next) => {
       .json({ msg: alarm, status: true, lengthData: length });
   } catch (error) {
     console.log("error from getAllAlarm", error);
-    return res.status(500).json({ msg: error.message });
+    return res.status(500).json({
+      message: "Something went wrong",
+    });
   }
 };
 
@@ -396,7 +425,9 @@ exports.deleteAlarm = async (req, res, next) => {
     return res.status(200).json({ msg: "Alarm deleted" });
   } catch (error) {
     console.log("Error from deleteAlarm", error);
-    return res.status(500).json({ msg: error.message });
+    return res.status(500).json({
+      message: "Something went wrong",
+    });
   }
 };
 
@@ -436,9 +467,7 @@ exports.filterAlarm = async (req, res, next) => {
           deviceId,
           SensorName: { $regex: /^[P][H]/, $options: "m" },
         });
-        return res
-          .status(200)
-          .json({ msg: filteredAlarm, lengthData: Math.ceil(length / limits) });
+        return res.status(200).json({ msg: filteredAlarm, lengthData: length });
       }
 
       if (sensorName === "RES") {
@@ -463,9 +492,7 @@ exports.filterAlarm = async (req, res, next) => {
           deviceId,
           SensorName: { $regex: /^[R]/, $options: "m" },
         });
-        return res
-          .status(200)
-          .json({ msg: filteredAlarm, lengthData: Math.ceil(length / limits) });
+        return res.status(200).json({ msg: filteredAlarm, lengthData: length });
       }
       filteredAlarm = await Alarm.find({
         deviceId,
@@ -488,19 +515,20 @@ exports.filterAlarm = async (req, res, next) => {
         deviceId,
         SensorName: { $regex: sensorName, $options: "i" },
       });
-      return res
-        .status(200)
-        .json({ msg: filteredAlarm, lengthData: Math.ceil(length / limits) });
+      return res.status(200).json({ msg: filteredAlarm, lengthData: length });
     }
   } catch (error) {
     console.log("error from filterAlarm ", error);
-    return res.status(500).json({ msg: error.message });
+    return res.status(500).json({
+      message: "Something went wrong",
+    });
   }
 };
 
 exports.getNotificationCount = async (req, res) => {
   try {
-    const count = await Alarm.countDocuments({ isRead: true });
+    // unread alarms should be isRead: false
+    const count = await Alarm.countDocuments({ isRead: false });
     return res.status(200).json({ count, success: true });
   } catch (err) {
     console.log("error in notification", err);

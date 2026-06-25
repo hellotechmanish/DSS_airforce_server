@@ -6,7 +6,7 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 // =========================== Create Site ======================== //
 exports.createSite = async (req, res, next) => {
-  console.log("==== createSite function got hit () ====");
+  console.log("-- createSite function got hit () --");
   const { siteName, uid, location, pincode, country, state } = req.body;
 
   if (!siteName || !uid || !location || !pincode || !country || !state) {
@@ -27,7 +27,9 @@ exports.createSite = async (req, res, next) => {
     }
   } catch (error) {
     console.log("error from createSite ==>", error);
-    return res.status(500).json({ msg: error.message });
+    return res.status(500).json({
+      message: "Something went wrong",
+    });
   }
 };
 
@@ -39,7 +41,7 @@ exports.editSite = async (req, res, next) => {
     let site = await Site.findByIdAndUpdate(
       siteId,
       { siteName, uid, location, pincode, country, state },
-      { new: true }
+      { new: true },
     );
 
     if (site) {
@@ -49,7 +51,9 @@ exports.editSite = async (req, res, next) => {
     }
   } catch (error) {
     console.log("error from editSite ==>", error);
-    return res.status(500).json({ msg: error.message });
+    return res.status(500).json({
+      message: "Something went wrong",
+    });
   }
 };
 
@@ -69,7 +73,9 @@ exports.deleteSite = async (req, res, next) => {
     }
   } catch (error) {
     console.log("error from deleteSite ==>", error);
-    return res.status(500).json({ msg: error.message });
+    return res.status(500).json({
+      message: "Something went wrong",
+    });
   }
 };
 
@@ -94,62 +100,133 @@ exports.deleteSiteFromUser = async (req, res, next) => {
 };
 
 // =========================== Number of Site ============================= //
-exports.numberOfSite = async (req, res, next) => {
-  // let user = req.user
-  // console.log("numberOfSite ===>", req.user.role)
-
+exports.numberOfSite = async (req, res) => {
   try {
-    let RespSite;
-    if (req.user.role === 0 || req.user.role === 1) {
-      RespSite = await Site.find({}).lean();
+    if (!req.user || !req.user.role) {
+      return res.status(401).json({ msg: "Unauthorized" });
     }
-    if (req.user.role === 2) {
-      RespSite = await Site.find({ userId: { $in: [req.user._id] } }).lean();
-      for (let item of RespSite) {
-        // console.log("==>", item._id.toString())
-        let deviceCount = await Device.countDocuments({
-          userId: { $in: [req.user._id] },
-        });
-        // console.log("device count ==>", deviceCount)
-        item.deviceCount = deviceCount;
-      }
-      return res.status(200).json({ msg: RespSite });
+
+    //  pagination params
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    let siteFilter = {};
+
+    //  ROLE BASED SITE FILTER
+    if (req.user.role === "admin" || req.user.role === "technician") {
+      siteFilter = {};
+    } else if (req.user.role === "user") {
+      siteFilter = {
+        userId: new mongoose.Types.ObjectId(req.user.id),
+      };
+    } else {
+      return res.status(403).json({ msg: "Invalid role" });
     }
-    for (let item of RespSite) {
-      // console.log("==>", item._id.toString())
-      let deviceCount = await Device.countDocuments({
-        siteId: item._id.toString(),
+
+    //  total count (before pagination)
+    const total = await Site.countDocuments(siteFilter);
+
+    //  paginated sites
+    const sites = await Site.find(siteFilter).skip(skip).limit(limit).lean();
+
+    if (!sites.length) {
+      return res.status(200).json({
+        msg: [],
+        pagination: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+        },
       });
-      // console.log("device count ==>", deviceCount)
-      item.deviceCount = deviceCount;
     }
-    // let deviceCount = await Device.find({})
-    return res.status(200).json({ msg: RespSite });
+
+    const siteIds = sites.map((site) => site._id);
+
+    let deviceMatch = {
+      siteId: { $in: siteIds },
+    };
+
+    //  USER DEVICE FILTER
+    if (req.user.role === "user") {
+      deviceMatch.userId = new mongoose.Types.ObjectId(req.user.id);
+    }
+
+    const deviceCounts = await Device.aggregate([
+      { $match: deviceMatch },
+      {
+        $group: {
+          _id: "$siteId",
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const countMap = {};
+    deviceCounts.forEach((item) => {
+      countMap[item._id.toString()] = item.count;
+    });
+
+    const updatedSites = sites.map((site) => ({
+      ...site,
+      deviceCount: countMap[site._id.toString()] || 0,
+    }));
+
+    //  debug log
+    console.log("Pagination:", {
+      page,
+      limit,
+      total,
+      returned: updatedSites.length,
+    });
+
+    return res.status(200).json({
+      msg: updatedSites,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
   } catch (error) {
-    console.log("error from numberOfSite =>", error.message);
+    console.error("numberOfSite error:", error);
+    return res.status(500).json({ msg: "Internal Server Error" });
   }
 };
 
 // ============================= Get site By UserId =============================== //
-exports.getSiteByUserId = async (req, res, next) => {
+exports.getSiteByUserId = async (req, res) => {
   const { userId } = req.params;
-  // console.log("== getSiteByUserId () ==")
-  // console.table(req.params)
+
   try {
-    let resp = await Site.find({ userId: { $in: [userId] } }).lean();
+    const objectUserId = new mongoose.Types.ObjectId(userId);
+
+    let resp = await Site.find({
+      userId: objectUserId,
+    }).lean();
+
     for (let item of resp) {
-      // console.log("==>", item._id.toString())
-      // let deviceCount = await Device.countDocuments({siteId: item._id.toString()})
-      let deviceCount = await Device.countDocuments({
-        userId: { $in: [userId] },
+      //  TOTAL DEVICES (already tha)
+      item.deviceCount = await Device.countDocuments({
+        siteId: item._id,
       });
-      // console.log("device count ==>", deviceCount)
-      item.deviceCount = deviceCount;
+
+      //  USER ASSIGNED DEVICES (NEW)
+      item.userDeviceCount = await Device.countDocuments({
+        siteId: item._id,
+        userId: objectUserId,
+      });
     }
-    return res.status(200).json({ msg: resp });
+
+    return res.status(200).json({
+      msg: resp,
+    });
   } catch (error) {
-    console.log("Error from getSiteByUserId ==>", error);
-    return res.status(500).json({ msg: error.message });
+    return res.status(500).json({
+      msg: error.message,
+    });
   }
 };
 
@@ -171,7 +248,9 @@ exports.checkSiteUid = async (req, res, next) => {
     }
   } catch (error) {
     console.log("error from checkSiteUid", error);
-    return res.status(500).json({ msg: error.message });
+    return res.status(500).json({
+      message: "Something went wrong",
+    });
   }
 };
 
@@ -179,7 +258,7 @@ exports.checkSiteUid = async (req, res, next) => {
 exports.searchSite = async (req, res, next) => {
   const { searchQuery } = req.query;
   try {
-    if (req.user.role === 2) {
+    if (req.user.role === "user") {
       // console.log("searchSite role 2")
       RespSite = await Site.find({
         userId: { $in: [req.user._id] },
@@ -201,25 +280,48 @@ exports.searchSite = async (req, res, next) => {
     return res.status(200).json({ msg: sites });
   } catch (error) {
     console.log("error from searchSite ", error);
-    return res.status(500).json({ msg: error.message });
+    return res.status(500).json({
+      message: "Something went wrong",
+    });
   }
 };
 
 // ============================= GET ALL Resistance Site and Device Data ================================== //
-exports.getAllSiteResistance = async (req, res, next) => {
+exports.getAllSiteResistance = async (req, res) => {
   try {
-    // let resp = await Device.find().populate('siteId')
-    let resp = await Device.aggregate([
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const search = req.query.search || "";
+
+    const skip = (page - 1) * limit;
+
+    let matchStage = {};
+
+    // 🔥 ROLE FILTER
+    if (req.user.role === "user") {
+      matchStage.userId = new mongoose.Types.ObjectId(req.user.id);
+    }
+
+    const pipeline = [
+      {
+        $match: matchStage,
+      },
       {
         $lookup: {
           from: "sites",
           localField: "siteId",
           foreignField: "_id",
-          as: "siteId",
+          as: "site",
         },
       },
       {
-        $unwind: "$ResValues.DATASTREAMS",
+        $unwind: "$site",
+      },
+      {
+        $unwind: {
+          path: "$ResValues.DATASTREAMS",
+          preserveNullAndEmptyArrays: true,
+        },
       },
       {
         $addFields: {
@@ -227,32 +329,81 @@ exports.getAllSiteResistance = async (req, res, next) => {
           resistanceValue: "$ResValues.DATASTREAMS.value",
         },
       },
+
+      // 🔍 SEARCH FILTER
+      {
+        $match: {
+          $or: [
+            { deviceName: { $regex: search, $options: "i" } },
+            { nodeUid: { $regex: search, $options: "i" } },
+            { "site.siteName": { $regex: search, $options: "i" } },
+          ],
+        },
+      },
+
       {
         $project: {
           _id: 1,
           deviceName: 1,
           nodeUid: 1,
-          siteId: 1,
+          siteName: "$site.siteName",
+          siteUid: "$site.uid",
           resistanceNumber: 1,
           resistanceValue: 1,
           resSensorsThreshold: 1,
         },
       },
-    ]);
 
-    console.log(resp);
-    return res.status(200).json({ msg: resp });
+      //  PAGINATION + TOTAL
+      {
+        $facet: {
+          data: [{ $skip: skip }, { $limit: limit }],
+          totalCount: [{ $count: "count" }],
+        },
+      },
+    ];
+
+    const result = await Device.aggregate(pipeline);
+
+    const data = result[0]?.data || [];
+    const total = result[0]?.totalCount[0]?.count || 0;
+
+    //  DEBUG
+    console.log("Resistance Pagination:", {
+      page,
+      limit,
+      total,
+      returned: data.length,
+    });
+
+    return res.status(200).json({
+      msg: data,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
   } catch (error) {
     console.log("error from getAllSiteResistance =>", error.message);
-    return res.status(500).json({ msg: error.message });
+
+    return res.status(500).json({
+      message: "Something went wrong",
+    });
   }
 };
 
 // ============================= GET ALL getAllSiteTemp and Device Data ================================== //
-exports.getAllSiteTemp = async (req, res, next) => {
+exports.getAllSiteTemp = async (req, res) => {
   try {
-    // let resp = await Device.find().populate('siteId')
-    let resp = await Device.aggregate([
+    //    query params
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+
+    const skip = (page - 1) * limit;
+
+    const pipeline = [
       {
         $lookup: {
           from: "sites",
@@ -287,13 +438,44 @@ exports.getAllSiteTemp = async (req, res, next) => {
           tempValue: 1,
         },
       },
-    ]);
 
-    console.log(resp);
-    return res.status(200).json({ msg: resp });
+      //    pagination + total count
+      {
+        $facet: {
+          data: [{ $skip: skip }, { $limit: limit }],
+          totalCount: [{ $count: "count" }],
+        },
+      },
+    ];
+
+    const result = await Device.aggregate(pipeline);
+
+    const data = result[0]?.data || [];
+    const total = result[0]?.totalCount[0]?.count || 0;
+
+    //    debug log (important)
+    console.log("Pagination Info:", {
+      page,
+      limit,
+      total,
+      returned: data.length,
+    });
+
+    return res.status(200).json({
+      msg: data,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
   } catch (error) {
     console.log("error from getAllSiteTemp =>", error.message);
-    return res.status(500).json({ msg: error.message });
+
+    return res.status(500).json({
+      message: "Something went wrong",
+    });
   }
 };
 
@@ -334,7 +516,9 @@ exports.getAllSiteGn = async (req, res, next) => {
     return res.status(200).json({ msg: resp });
   } catch (error) {
     console.log("error from getAllSiteGN =>", error.message);
-    return res.status(500).json({ msg: error.message });
+    return res.status(500).json({
+      message: "Something went wrong",
+    });
   }
 };
 
@@ -378,7 +562,9 @@ exports.getAllSiteSpd = async (req, res, next) => {
     return res.status(200).json({ msg: resp });
   } catch (error) {
     console.log("error from getAllSiteSpd =>", error.message);
-    return res.status(500).json({ msg: error.message });
+    return res.status(500).json({
+      message: "Something went wrong",
+    });
   }
 };
 
@@ -422,7 +608,9 @@ exports.getAllSiteVmr = async (req, res, next) => {
     return res.status(200).json({ msg: resp });
   } catch (error) {
     console.log("error from getAllSiteVmr =>", error.message);
-    return res.status(500).json({ msg: error.message });
+    return res.status(500).json({
+      message: "Something went wrong",
+    });
   }
 };
 

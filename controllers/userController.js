@@ -1,104 +1,101 @@
 const Device = require("../models/device");
 const Site = require("../models/site");
 const User = require("../models/user");
+const validatePassword = require("../utils/passvalidator");
+const bcrypt = require("bcryptjs");
 
 // =========================== Create User ============================= //
-exports.addUser = async (req, res, next) => {
-  const {
-    password,
-    fullName,
-    uid,
-    type,
-    siteId,
-    deviceId,
-    phaseNumber,
-    resistanceNumber,
-    spdNumber,
-    gnNumber,
-  } = req.body;
-  console.log("=========== addUser function got hit () =============");
-
-  let newDeviceSensors = {
-    deviceId: deviceId,
-    phaseNumber: phaseNumber,
-    resistanceNumber: resistanceNumber,
-    spdNumber: spdNumber,
-    gnNumber: gnNumber,
-  };
+exports.addUser = async (req, res) => {
+  let { password, fullName, uid, type, role, sites } = req.body;
 
   try {
-    let user;
+    //  Convert numeric role to string
+    if (role === 0 || role === "0") role = "admin";
+    if (role === 1 || role === "1") role = "technician";
+    if (role === 2 || role === "2") role = "user";
+
+    if (type === 0 || type === "0") type = "admin";
+    if (type === 1 || type === "1") type = "technician";
+    if (type === 2 || type === "2") type = "user";
+
+    const finalRole = role || type;
+
+    if (!["admin", "technician", "user"].includes(finalRole)) {
+      return res.status(400).json({ msg: "Invalid role type" });
+    }
+
     const userExist = await User.findOne({ uid });
     if (userExist) {
-      return res.status(403).json({ msg: "uid is already registered" });
+      return res.status(403).json({ msg: "UID already registered" });
     }
 
-    if (type === "technician") {
-      if (!password || !fullName || !uid) {
-        return res
-          .status(400)
-          .json({ msg: "Please! provide all required data" });
-      }
+    let user;
 
+    // ================= TECHNICIAN =================
+    if (finalRole === "technician") {
       user = await User.create({
         password,
         fullName,
         uid,
-        role: 1,
+        role: "technician",
       });
     }
 
-    if (type === "user") {
-      if (
-        !password ||
-        !fullName ||
-        !uid ||
-        !siteId ||
-        !deviceId ||
-        !phaseNumber ||
-        !resistanceNumber ||
-        !spdNumber ||
-        !gnNumber
-      ) {
-        return res
-          .status(400)
-          .json({ msg: "Please! provide all required data" });
-      }
+    // ================= USER =================
+    if (finalRole === "user") {
+      // if (!sites || sites.length === 0) {
+      //   return res.status(400).json({
+      //     msg: "Site required for user",
+      //   });
+      // }
 
+      // create user first
       user = await User.create({
         password,
         fullName,
         uid,
-        deviceSensors: [newDeviceSensors],
-        role: 2,
+        role: "user",
+      });
+
+      //  loop through sites
+      // for (const site of sites) {
+      //   const { siteId, devices } = site;
+
+      //   // assign user to site
+      //   await Site.findByIdAndUpdate(siteId, {
+      //     $addToSet: { userId: user._id },
+      //   });
+
+      //   // assign user to devices if exist
+      //   if (devices && devices.length > 0) {
+      //     for (const deviceId of devices) {
+      //       await Device.findByIdAndUpdate(deviceId, {
+      //         $addToSet: { userId: user._id },
+      //       });
+      //     }
+      //   }
+      // }
+    }
+
+    // ================= ADMIN =================
+    if (finalRole === "admin") {
+      user = await User.create({
+        password,
+        fullName,
+        uid,
+        role: "admin",
       });
     }
 
-    await Site.findByIdAndUpdate(siteId, { $addToSet: { userId: user._id } });
-
-    await Device.findByIdAndUpdate(deviceId, { $push: { userId: user._id } });
-
-    // await User.findOneAndUpdate(
-    //     {
-    //         _id: user._id,
-    //         "deviceSensors": { "$elemMatch": { "deviceId": deviceId }}
-    //     },
-
-    //     {
-    //         "$set": {
-    //             "deviceSensors.$.phaseNumber":  phaseNumber,
-    //             "deviceSensors.$.resistanceNumber": resistanceNumber,
-    //             "deviceSensors.$.spdNumber":  spdNumber,
-    //             "deviceSensors.$.gnNumber": gnNumber
-    //         }
-    //     }
-    //     )
-
-    return res.status(200).json({ msg: "user created successfully" });
-    // sendToken(user, 201, res);
+    return res.status(201).json({
+      msg: "User created successfully",
+    });
   } catch (error) {
-    console.log("error from addUser ==>", error);
-    return res.status(500).json({ msg: error.message });
+    console.log("ADD USER ERROR =>", error);
+
+    return res.status(500).json({
+      msg: error.message,
+    });
   }
 };
 
@@ -137,16 +134,48 @@ exports.login = async (req, res, next) => {
 };
 
 // =========================== RESET Password ========================== //
-exports.resetPassword = async (req, res, next) => {
+exports.resetPassword = async (req, res) => {
   const { password, userId } = req.body;
+
+  console.log("req.body", req.body);
+
   try {
-    let updatePass = await User.findById(userId);
-    updatePass.password = password;
-    await updatePass.save();
-    return res.status(200).json({ msg: "Password Updated Successfully" });
+    if (!password || !userId) {
+      return res.status(400).json({
+        msg: "Password and userId are required",
+      });
+    }
+
+    const { isValid, errors } = validatePassword(password);
+
+    if (!isValid) {
+      return res.status(400).json({
+        msg: "Weak password",
+        errors,
+      });
+    }
+
+    let user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({
+        msg: "User not found",
+      });
+    }
+
+    //    NO HASH HERE
+    user.password = password;
+
+    await user.save(); //     pre-save hook will hash
+
+    return res.status(200).json({
+      msg: "Password Updated Successfully",
+    });
   } catch (error) {
     console.log("Error from resetPassword", error);
-    return res.status(500).json({ msg: error.message });
+    return res.status(500).json({
+      message: "Something went wrong",
+    });
   }
 };
 
@@ -159,19 +188,29 @@ const sendToken = (users, statusCode, res) => {
 // ============================== get all user List according to role ============================== //
 exports.getUserList = async (req, res, next) => {
   const { userRole } = req.params;
+
   try {
-    let resp = await User.find({ role: userRole }).lean();
-    for (let item of resp) {
-      let siteCount = await Site.countDocuments({
-        userId: { $in: [item._id.toString()] },
-      });
-      // console.log("device count ==>", deviceCount)
-      item.siteCount = siteCount;
+    const users = await User.find({ role: userRole }).lean();
+
+    for (let item of users) {
+      //  get sites for this user
+      const sites = await Site.find(
+        { userId: { $in: [item._id] } },
+        { _id: 1, siteName: 1, uid: 1 }, //  only required fields
+      ).lean();
+
+      //  attach data
+      item.siteCount = sites.length;
+      item.sites = sites; // 🔥 send to frontend
     }
-    return res.status(200).json({ msg: resp });
+
+    return res.status(200).json({ msg: users });
   } catch (error) {
     console.log("error from getUserList ==>", error);
-    return res.status(500).json({ msg: error.message });
+
+    return res.status(500).json({
+      message: "Something went wrong",
+    });
   }
 };
 
@@ -190,7 +229,7 @@ exports.editUser = async (req, res, next) => {
         },
         {
           new: true,
-        }
+        },
       );
 
       return res
@@ -199,7 +238,9 @@ exports.editUser = async (req, res, next) => {
       // sendToken(user, 201, res);
     } catch (error) {
       console.log("error from addUser By technician==>", error);
-      return res.status(500).json({ msg: error.message });
+      return res.status(500).json({
+        message: "Something went wrong",
+      });
     }
   }
 
@@ -214,7 +255,7 @@ exports.editUser = async (req, res, next) => {
         },
         {
           new: true,
-        }
+        },
       );
 
       return res
@@ -223,7 +264,9 @@ exports.editUser = async (req, res, next) => {
       // sendToken(user, 201, res);
     } catch (error) {
       console.log("error from addUser By admin==>", error);
-      return res.status(500).json({ msg: error.message });
+      return res.status(500).json({
+        message: "Something went wrong",
+      });
     }
   }
 };
@@ -243,25 +286,41 @@ exports.deleteUser = async (req, res, next) => {
     }
   } catch (error) {
     console.log("error from deleteUser ==>", error);
-    return res.status(500).json({ msg: error.message });
+    return res.status(500).json({
+      message: "Something went wrong",
+    });
   }
 };
 
 // =============================== Assign Site ============================== //
-exports.assignSite = async (req, res, next) => {
-  const { userId, siteId } = req.body;
-  console.log("=== Assign Site to user () ===");
-  // console.table(req.body);
+exports.assignSite = async (req, res) => {
+  const { userId, siteIds, deviceIds } = req.body;
+
+  console.log("Incoming:", req.body);
+
   try {
-    let siteAssign = await Site.findByIdAndUpdate(siteId, {
-      $addToSet: { userId: userId },
-    });
-    if (siteAssign) {
-      return res.status(200).json({ msg: "Site Assigned successfully" });
+    //    1. Assign multiple sites
+    await Site.updateMany(
+      { _id: { $in: siteIds } },
+      { $addToSet: { userId: userId } },
+    );
+
+    //    2. Assign devices (IMPORTANT)
+    if (deviceIds && deviceIds.length > 0) {
+      await Device.updateMany(
+        { _id: { $in: deviceIds } },
+        { $set: { userId: userId } },
+      );
     }
+
+    return res.status(200).json({
+      msg: "Sites & Devices assigned successfully",
+    });
   } catch (error) {
-    console.log("error from assignSite ==> ", error);
-    return res.status(500).json({ msg: error.message });
+    console.error("assignSite error:", error);
+    return res.status(500).json({
+      msg: "Something went wrong",
+    });
   }
 };
 
@@ -282,7 +341,9 @@ exports.checkUserUid = async (req, res, next) => {
     }
   } catch (error) {
     console.log("error from checkUserUid", error);
-    return res.status(500).json({ msg: error.message });
+    return res.status(500).json({
+      message: "Something went wrong",
+    });
   }
 };
 
@@ -312,7 +373,7 @@ exports.assignDeviceSensor = async (req, res, next) => {
     let user = await User.findById(userId);
 
     let userdeviceFilter = user.deviceSensors.filter(
-      (item) => item.deviceId === deviceId
+      (item) => item.deviceId === deviceId,
     );
     if (userdeviceFilter.length > 0) {
       await User.findOneAndUpdate(
@@ -328,7 +389,7 @@ exports.assignDeviceSensor = async (req, res, next) => {
             "deviceSensors.$.spdNumber": spdNumber,
             "deviceSensors.$.gnNumber": gnNumber,
           },
-        }
+        },
       );
 
       await Device.findByIdAndUpdate(deviceId, { $push: { userId: userId } });
@@ -342,7 +403,9 @@ exports.assignDeviceSensor = async (req, res, next) => {
     return res.status(200).json({ msg: "Assigned device Sensor" });
   } catch (error) {
     console.log("error from assignDeviceSensor", error);
-    return res.status(500).json({ msg: error.message });
+    return res.status(500).json({
+      message: "Something went wrong",
+    });
   }
 };
 
@@ -365,18 +428,21 @@ exports.getassignSensor = async (req, res, next) => {
     return res.status(200).json({ msg: resp?.deviceSensors });
   } catch (error) {
     console.log("error from getassignSensor ==>", error);
-    return res.status(500).json({ msg: error.message });
+    return res.status(500).json({
+      message: "Something went wrong",
+    });
   }
 };
 
-
-exports.gettest= async(req,res,next) =>{
-console.log("test function got hit");
+exports.gettest = async (req, res, next) => {
+  console.log("test function got hit");
   try {
     const resp = "test function executed successfully";
     return res.status(200).json({ msg: resp });
   } catch (error) {
     console.log("error from test function ==>", error);
-    return res.status(500).json({ msg: error.message });
+    return res.status(500).json({
+      message: "Something went wrong",
+    });
   }
-}
+};
