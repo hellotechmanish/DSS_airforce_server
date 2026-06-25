@@ -1,8 +1,6 @@
 const express = require("express");
-const mongoose = require("mongoose");
 var cors = require("cors");
 const cookieParser = require("cookie-parser");
-const DeviceMsg = require("./models/deviceMsg");
 const Device = require("./models/device");
 const util = require("util");
 const { series } = require("async");
@@ -14,98 +12,98 @@ var ObjectId = require("mongodb").ObjectId;
 const morgan = require("morgan");
 const { checkauth } = require("./config/middleware");
 const helmet = require("helmet");
+const connectDB = require("./config/db"); // Database module imported here
+const DeviceMsg = require("./models/deviceMsg");
+const redisClient = require("./config/redis");
 
 const app = express();
+
 require("dotenv").config();
+
 const PORT = process.env.PORT || 5009;
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// app.use(cors("*"));
 app.use(helmet.frameguard({ action: "deny" }));
-
 app.use(helmet());
+
 app.use(
   cors({
     origin: "http://localhost:3000",
     credentials: true,
-    // origin: ["http://localhost:3000", "http://192.168.29.140:3000"],
   }),
 );
 
 app.use(morgan("dev"));
-// app.use('/public', express.static('public'));
 
 /* 🔓 AUTH */
 app.get("/api", (req, res) => {
-  res.status(200).json({ success: true, message: "API is running" });
+  res.status(200).json({
+    success: true,
+    message: "API is running",
+  });
 });
 
 app.use("/api/auth", require("./routes/auth.routes"));
 
-/*     PROTECTED USER APIs */
+/* 🔒 PROTECTED ROUTES */
 app.use("/api/user", checkauth, require("./routes/userRoutes"));
 app.use("/api/site", checkauth, require("./routes/siteRoutes"));
-
 app.use("/api/device", checkauth, require("./routes/deviceRoutes"));
 app.use("/api/alarm", checkauth, require("./routes/alarmRoutes"));
 
-// mongoose.set("strictQuery", false); // prev
-mongoose.set("strictQuery", true);
-console.log("MONGO_URI:", process.env.MONGO_URI);
+/* START SERVER */
+const startServer = async () => {
+  try {
+    await connectDB();
 
-mongoose
-  .connect(process.env.MONGO_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-    serverSelectionTimeoutMS: 5000,
-  })
-  .then(() => {
-    console.log("[ MongoDB connected successfully ]");
+    if (!redisClient.isOpen) {
+      await redisClient.connect();
+      console.log("Redis Connected");
+    }
 
-    // Start server only after DB connects
     app.listen(PORT, () => {
       console.log(`[->] Server running on port ${PORT}`);
     });
-  })
-  .catch((err) => {
-    console.error(" Database connection failed:", err.message);
-    process.exit(1); // stop app if DB fails
-  });
+  } catch (err) {
+    console.error(err);
+  }
+};
+
+startServer();
+
+/* ========================================= */
+/* EXISTING FUNCTIONS BELOW */
+/* ========================================= */
 
 async function frontendStart() {
   let masterTimer = setTimeout(async () => {
     if (true) {
       console.log("//============== Frontend Has Been Started ============//");
+
       let timer2 = setTimeout(async () => {
-        // exec("chromium-browser --app=http://www.localhost:3000/ --kiosk",(err,stdout , stderr)=>{
-        //let { stdout } = exec("firefox http://localhost:3000 --kiosk");
-        // if (stdout) {
         console.log("//========= fireFox has been started =========//");
+
         let timer3 = setTimeout(() => {
           let { stdout } = exec(
             "xdotool search --sync --onlyvisible --name firefox key F11",
           );
+
           if (stdout) {
             console.log("//========= F11 Command has been executed ====//");
           }
+
           clearTimeout(timer3);
         }, 6000);
-        //}
+
         clearTimeout(timer2);
         clearTimeout(masterTimer);
       }, 5000);
     }
   }, 5000);
 }
-
-// ================================ Test ================================== //
-
-// "638ca2205a1fc41d62e8b197"  //"RES"
-
-// console.log(genRand(0, 5, 2));
 
 function genRand(min, max, decimalPlaces) {
   return (Math.random() * (max - min) + min).toFixed(decimalPlaces) * 1;
@@ -114,17 +112,16 @@ function genRand(min, max, decimalPlaces) {
 async function feedData(NodeID, deviceNumber, param) {
   console.log("creating One Year Data");
 
-  let deviceId = await Device.findOne({ nodeUid: NodeID });
+  let deviceId = await Device.findOne({
+    nodeUid: NodeID,
+  });
+
   let startDate = moment().subtract(1, "year").format("YYYY-MM-DD");
-  // let startDate = moment().subtract(2, "days").format("YYYY-MM-DD");
   let endDate = moment().format("YYYY-MM-DD");
-  // console.log("date Range ==>", startDate, endDate)
 
   let dateList = getRangebetweenDates(startDate, endDate, "days");
-  // Ignore today date
-  dateList.pop();
 
-  // console.log("dateRange ==>", dateList);
+  dateList.pop();
 
   for (let item of dateList) {
     let hour = [
@@ -134,20 +131,6 @@ async function feedData(NodeID, deviceNumber, param) {
 
     for (let item2 of hour) {
       let today = moment(item).add(item2, "hours").format();
-      // console.log("today ==>", today)
-
-      // let time = [
-      //   0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330, 360, 390, 420, 450,
-      //   480, 510, 540, 570, 600, 630, 660, 690, 720, 750, 780, 810, 840, 870,
-      //   900, 930, 960, 990, 1020, 1050, 1080, 1110, 1140, 1170, 1200, 1230,
-      //   1260, 1290, 1320, 1350, 1380, 1410, 1440, 1470, 1500, 1530, 1560, 1590,
-      //   1620, 1650, 1680, 1710, 1740, 1770, 1800, 1830, 1860, 1890, 1920, 1950,
-      //   1980, 2010, 2040, 2070, 2100, 2130, 2160, 2190, 2220, 2250, 2280, 2310,
-      //   2340, 2370, 2400, 2430, 2460, 2490, 2520, 2550, 2580, 2610, 2640, 2670,
-      //   2700, 2730, 2760, 2790, 2820, 2850, 2880, 2910, 2940, 2970, 3000, 3000,
-      //   3030, 3060, 3090, 3120, 3150, 3180, 3210, 3240, 3270, 3300, 3330, 3360,
-      //   3390, 3420, 3450, 3480, 3510, 3540, 3570
-      // ];
 
       let time = [
         0, 60, 120, 180, 240, 300, 360, 420, 480, 540, 600, 660, 720, 780, 840,
@@ -158,14 +141,11 @@ async function feedData(NodeID, deviceNumber, param) {
       ];
 
       for (let item3 of time) {
-        // console.log("time ==>", `${moment(today).add(item3, "seconds")}`)
-        let dataStream = [];
-        dataStream = [...new Array(deviceNumber)].map((_, i) => {
-          return {
-            deviceNumber: `${param}_${i}`,
-            value: genRand(0, 1, 2),
-          };
-        });
+        let dataStream = [...new Array(deviceNumber)].map((_, i) => ({
+          deviceNumber: `${param}_${i}`,
+          value: genRand(0, 1, 2),
+        }));
+
         await DeviceMsg.create([
           {
             deviceId: deviceId._id,
@@ -174,7 +154,7 @@ async function feedData(NodeID, deviceNumber, param) {
               DATASTREAMS: dataStream,
             },
             date: item,
-            time: `${moment(today).add(item3, "seconds").format("hh:mm")}`,
+            time: moment(today).add(item3, "seconds").format("hh:mm"),
             dateAndTime: moment(moment(today).add(item3, "seconds")).format(),
             createdAt: moment(today).add(item3, "seconds"),
             updatedAt: moment(today).add(item3, "seconds"),
@@ -182,15 +162,14 @@ async function feedData(NodeID, deviceNumber, param) {
         ]);
       }
     }
+
     console.log(`Data for Date - ${item} created`);
   }
 
   console.log("Data Added for One Year - Completed");
 }
 
-// ==== comment out these lines to add One Year Data === //
-
-// feedData("1452", 1 ,"RES")
-// feedData("1453", 1 ,"RES")
-// feedData("1454", 1 ,"RES")
-// feedData("1455", 1 ,"RES")
+// feedData("1452", 1, "RES");
+// feedData("1453", 1, "RES");
+// feedData("1454", 1, "RES");
+// feedData("1455", 1, "RES");

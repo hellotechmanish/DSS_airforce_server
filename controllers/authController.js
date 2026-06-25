@@ -1,18 +1,19 @@
 const User = require("../models/user");
 const validatePassword = require("../utils/passvalidator");
 const jwt = require("jsonwebtoken");
+const redisClient = require("../config/redis"); // Added missing Redis client import
 
 // Cookie security configurations setup
 const COOKIE_OPTIONS = {
-  httpOnly: true, // 🛡️ JavaScript access block karta hai (XSS Protection)
-  secure: process.env.NODE_ENV === "production", // Production (HTTPS) par hi active hoga
-  sameSite: "lax", // CSRF safeguards
-  maxAge: 24 * 60 * 60 * 1000, // 1 Din (Matches Token Expiry Window)
+  httpOnly: true, // Blocks JavaScript access for XSS protection
+  secure: process.env.NODE_ENV === "production", // Active only over HTTPS in production
+  sameSite: "lax", // CSRF protection safeguard
+  maxAge: 24 * 60 * 60 * 1000, // 1 Day lifecycle window matching token expiration
 };
 
 /* ==================== SIGNUP CONTROLLER ==================== */
 exports.signup = async (req, res) => {
-  console.log("Signup api is now running...");
+  console.log("Signup API execution started...");
 
   let { fullName, uid, password, role } = req.body;
 
@@ -25,17 +26,17 @@ exports.signup = async (req, res) => {
     return res.status(400).json({ msg: "Invalid input type" });
   }
 
-  // 2. Trim
+  // 2. Data trimming
   fullName = fullName.trim();
   uid = uid.trim();
   password = password.trim();
 
-  // 3. Empty check
+  // 3. Completeness validation check
   if (!fullName || !uid || !password) {
     return res.status(400).json({ msg: "Please provide all required fields" });
   }
 
-  // 4. Password validation
+  // 4. Password structural strength validation
   const { isValid, errors } = validatePassword(password);
 
   if (!isValid) {
@@ -46,14 +47,14 @@ exports.signup = async (req, res) => {
   }
 
   try {
-    // 5. Check UID
+    // 5. Unique identifier availability verify check
     const existingUser = await User.findOne({ uid });
 
     if (existingUser) {
       return res.status(400).json({ msg: "UID already exists" });
     }
 
-    // 6. Create user
+    // 6. Persist new user entity inside database layer
     const user = await User.create({
       fullName,
       uid,
@@ -61,112 +62,114 @@ exports.signup = async (req, res) => {
       role: role || "technician",
     });
 
-    // 7. Generate Token
+    // 7. Generate identity token signature
     const token = user.getSignedToken();
 
-    // 8. Inject Cookie immediately on successful signup
+    // 8. Secure token delivery inside network jar cookie
     res.cookie("token", token, COOKIE_OPTIONS);
 
-    // 9. Safe response
+    // 9. Isolate safe data profile properties
     const safeUser = {
+      id: user._id.toString(),
       fullName: user.fullName,
       uid: user.uid,
       role: user.role,
     };
+
+    // 10. Cache data session records inside Redis RAM storage layer
+    const redisKey = `session:${safeUser.id}`;
+    await redisClient.setEx(redisKey, 86400, JSON.stringify(safeUser));
 
     return res.status(201).json({
       msg: "User created successfully",
       user: safeUser,
     });
   } catch (error) {
-    console.error("Signup error ==>", error);
+    console.error("Signup validation error trace:", error);
     return res.status(500).json({ msg: "Something went wrong" });
   }
 };
 
 /* ==================== LOGIN CONTROLLER ==================== */
 exports.login = async (req, res) => {
-  console.log("Login api is now running...");
+  console.log("Login API execution started...");
 
   let { uid, password } = req.body;
 
-  // 1. Type validation (BLOCK NoSQL injection)
   if (typeof uid !== "string" || typeof password !== "string") {
     return res.status(400).json({ msg: "Invalid input type" });
   }
 
-  // 2. Trim input (avoid whitespace tricks)
   uid = uid.trim();
   password = password.trim();
 
-  // 3. Empty check
   if (!uid || !password) {
     return res.status(400).json({ msg: "Please provide credentials" });
   }
 
   try {
-    // 4. Strict query (safe)
     const user = await User.findOne({ uid }).select("+password");
 
     if (!user) {
-      return res.status(403).json({ msg: "Wrong credentials" }); // Security: Keep error messages generic
+      return res.status(403).json({ msg: "Wrong credentials" });
     }
 
-    // 5. Ensure stored password exists
     if (!user.password) {
       return res
         .status(500)
         .json({ msg: "Invalid user data profile structure" });
     }
 
-    // 6. Compare password safely
     const isMatch = await user.matchPasswords(password);
 
     if (!isMatch) {
       return res.status(403).json({ msg: "Wrong credentials" });
     }
 
-    // 7. Generate Token via your instance method
-    // ⚠️ NOTE: Ensure your userSchema.methods.getSignedToken includes role, fullName, and uid inside its payload!
     const token = user.getSignedToken();
 
-    //   8. FIXED: Explicitly defined inline fallback options matrix to guarantee execution success
-    const COOKIE_OPTIONS = {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 24 * 60 * 60 * 1000, // 1 Day lifecycle window
-    };
-
-    // Attaching token inside HttpOnly jar securely
     res.cookie("token", token, COOKIE_OPTIONS);
 
-    // 9. Send safe user object (Clean response pipeline)
     const safeUser = {
-      userID: user._id,
+      id: user._id.toString(),
       fullName: user.fullName,
       uid: user.uid,
       role: user.role,
     };
+
+    // Save session payload to Redis RAM with a 24-hour expiration (86400 seconds)
+    const redisKey = `session:${safeUser.id}`;
+    await redisClient.setEx(redisKey, 86400, JSON.stringify(safeUser));
+
+    console.log(`Session successfully cached in Redis for key: ${redisKey}`);
 
     return res.status(200).json({
       success: true,
       user: safeUser,
     });
   } catch (error) {
-    console.error(
-      "Error intercepted inside fallback controller ==>",
-      error.message,
-    );
+    console.error("Error intercepted inside login controller:", error.message);
     return res.status(500).json({ msg: "Something went wrong" });
   }
 };
 
 /* ==================== LOGOUT CONTROLLER ==================== */
-// 🔥 Added clear pipeline to instantly unmount cookie session arrays on request
 exports.logout = async (req, res) => {
+  console.log("Logout API execution started...");
   try {
-    //   res.clearCookie browser ke storage se token ko mita deta hai
+    // Extract the identifier injected into the request stack by the checkauth middleware
+    const userId = req.user?.id;
+
+    if (userId) {
+      const redisKey = `session:${userId}`;
+      // Explicitly delete the key to instantly invalidate the active session
+      await redisClient.del(redisKey);
+      console.log(
+        `Session successfully removed from Redis memory for key: ${redisKey}`,
+      );
+    }
+
+    // Clear the browser-side cookie tracking reference
     res.clearCookie("token", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -175,19 +178,18 @@ exports.logout = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      msg: "Logged out successfully (Cookie cleaned)",
+      msg: "Logged out successfully (Redis state and cookie cleaned)",
     });
   } catch (error) {
-    console.error("Logout Error:", error.message);
+    console.error("Logout Error intercepted:", error.message);
     return res.status(500).json({ msg: "Something went wrong during logout" });
   }
 };
 
+/* ==================== GET ME CONTROLLER ==================== */
 exports.getMe = async (req, res) => {
   try {
-    // Agar aapke paas 'protect' middleware hai, toh req.user me data betha hoga
-    // Agar middleware nahi hai, toh pehle cookie se token nikaal kar decode karna hoga
-
+    // If request parsed successfully through checkauth, data is ready in req.user
     if (!req.user) {
       return res
         .status(401)
@@ -196,7 +198,7 @@ exports.getMe = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      user: req.user, // Frontend Zustand store ko yahi data directly populate karega
+      user: req.user, // Directly provides pre-fetched data stream to frontend Zustand store
     });
   } catch (error) {
     console.error("Error in /me controller:", error.message);
@@ -241,9 +243,12 @@ exports.forgotPassword = async (req, res) => {
       return res.status(403).json({ msg: "Invalid secret key" });
     }
 
-    // NO HASH HERE - pre-save will hash
+    // Assign plain password text, schema middleware hook handles hashing
     user.password = newPassword;
     await user.save();
+
+    // Evict old user data cache from Redis to enforce fresh session re-authentication
+    await redisClient.del(`session:${user._id.toString()}`);
 
     return res.status(200).json({ msg: "Password reset successful" });
   } catch (error) {
