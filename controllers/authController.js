@@ -2,6 +2,7 @@ const User = require("../models/user");
 const validatePassword = require("../utils/passvalidator");
 const jwt = require("jsonwebtoken");
 const redisClient = require("../config/redis"); // Added missing Redis client import
+const ms = require("ms");
 
 // Cookie security configurations setup
 const COOKIE_OPTIONS = {
@@ -115,9 +116,9 @@ exports.login = async (req, res) => {
     }
 
     if (!user.password) {
-      return res
-        .status(500)
-        .json({ msg: "Invalid user data profile structure" });
+      return res.status(500).json({
+        msg: "Invalid user data profile structure",
+      });
     }
 
     const isMatch = await user.matchPasswords(password);
@@ -126,10 +127,13 @@ exports.login = async (req, res) => {
       return res.status(403).json({ msg: "Wrong credentials" });
     }
 
+    // Generate JWT
     const token = user.getSignedToken();
 
+    // Send JWT in HttpOnly cookie
     res.cookie("token", token, COOKIE_OPTIONS);
 
+    // Safe user object
     const safeUser = {
       id: user._id.toString(),
       fullName: user.fullName,
@@ -137,11 +141,25 @@ exports.login = async (req, res) => {
       role: user.role,
     };
 
-    // Save session payload to Redis RAM with a 24-hour expiration (86400 seconds)
-    const redisKey = `session:${safeUser.id}`;
-    await redisClient.setEx(redisKey, 86400, JSON.stringify(safeUser));
+    // Redis Session Object
+    const sessionData = {
+      token,
+      status: true,
+      user: safeUser,
+      loginAt: new Date().toISOString(),
+    };
 
-    console.log(`Session successfully cached in Redis for key: ${redisKey}`);
+    const redisKey = `session:${safeUser.id}`;
+
+    // Read JWT expiry from .env
+    const ttl = Math.floor(ms(process.env.JWT_EXPIRE || "60m") / 1000);
+
+    // Store session in Redis with same TTL as JWT
+    await redisClient.setEx(redisKey, ttl, JSON.stringify(sessionData));
+
+    console.log(
+      `Session cached successfully in Redis (${redisKey}) with TTL ${ttl} seconds`,
+    );
 
     return res.status(200).json({
       success: true,
@@ -149,27 +167,52 @@ exports.login = async (req, res) => {
     });
   } catch (error) {
     console.error("Error intercepted inside login controller:", error.message);
-    return res.status(500).json({ msg: "Something went wrong" });
+
+    return res.status(500).json({
+      msg: "Something went wrong",
+    });
   }
 };
 
 /* ==================== LOGOUT CONTROLLER ==================== */
 exports.logout = async (req, res) => {
   console.log("Logout API execution started...");
+  console.log("req.user =", req.user);
   try {
-    // Extract the identifier injected into the request stack by the checkauth middleware
     const userId = req.user?.id;
 
     if (userId) {
       const redisKey = `session:${userId}`;
-      // Explicitly delete the key to instantly invalidate the active session
-      await redisClient.del(redisKey);
-      console.log(
-        `Session successfully removed from Redis memory for key: ${redisKey}`,
-      );
+
+      // Read existing session from Redis
+      const session = await redisClient.get(redisKey);
+
+      if (session) {
+        const sessionData = JSON.parse(session);
+
+        // Mark session as logged out
+        sessionData.status = false;
+        sessionData.logoutAt = new Date().toISOString();
+        console.log("this is the session :", sessionData.status);
+
+        // Preserve remaining TTL
+        const ttl = await redisClient.ttl(redisKey);
+
+        if (ttl > 0) {
+          await redisClient.setEx(redisKey, ttl, JSON.stringify(sessionData));
+
+          console.log(
+            `Session marked as logged out for key: ${redisKey} (TTL remaining: ${ttl}s)`,
+          );
+        } else {
+          console.log(`Redis key ${redisKey} already expired.`);
+        }
+      } else {
+        console.log(`No active Redis session found for key: ${redisKey}`);
+      }
     }
 
-    // Clear the browser-side cookie tracking reference
+    // Clear browser cookie
     res.clearCookie("token", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -178,11 +221,15 @@ exports.logout = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      msg: "Logged out successfully (Redis state and cookie cleaned)",
+      msg: "Logged out successfully",
     });
   } catch (error) {
-    console.error("Logout Error intercepted:", error.message);
-    return res.status(500).json({ msg: "Something went wrong during logout" });
+    console.error("Logout Error:", error.message);
+
+    return res.status(500).json({
+      success: false,
+      msg: "Something went wrong during logout",
+    });
   }
 };
 

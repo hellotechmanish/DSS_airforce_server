@@ -3,15 +3,14 @@ module.exports = {
     {
       name: "redis-engine",
       script: "redis-server",
-      instances: 1,
       exec_mode: "fork",
-      watch: false,
+      instances: 1,
     },
     {
       name: "mern-server",
       script: "app.js",
-      instances: 3,
-      exec_mode: "cluster",
+      exec_mode: "fork", // ya cluster bhi rakh sakte hain
+      instances: 1,
       env: {
         NODE_ENV: "production",
       },

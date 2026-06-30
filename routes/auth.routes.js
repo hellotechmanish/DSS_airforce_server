@@ -8,7 +8,7 @@ const router = express.Router();
 router.post("/signup", authController.signup);
 router.post("/login", authController.login);
 router.post("/forgot-password", authController.forgotPassword);
-router.get("/logout", authController.logout);
+router.post("/logout", checkauth, authController.logout);
 
 //     CRITICAL FIX: /me route par protect middleware pass karna mandatory hai
 router.get("/me", checkauth, authController.getMe);
