@@ -3,6 +3,9 @@ module.exports = {
     {
       name: "redis-engine",
       script: "redis-server",
+      control: {
+        action: "taskkill /F /IM redis-server.exe",
+      },
       exec_mode: "fork",
       instances: 1,
     },
