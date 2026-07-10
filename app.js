@@ -48,7 +48,7 @@ app.get("/api", (req, res) => {
 
 app.use("/api/auth", require("./routes/auth.routes"));
 
-/* 🔒 PROTECTED ROUTES */
+/*  PROTECTED ROUTES */
 app.use("/api/user", checkauth, require("./routes/userRoutes"));
 app.use("/api/site", checkauth, require("./routes/siteRoutes"));
 app.use("/api/device", checkauth, require("./routes/deviceRoutes"));
