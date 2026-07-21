@@ -328,7 +328,7 @@ client.on("message", async function (topic, message) {
         ),
       ]);
 
-      console.log("✅ Data saved + threshold checked");
+      console.log("Data saved + threshold checked");
     } catch (err) {
       console.log("DB error =>", err.message);
     }
