@@ -6,6 +6,78 @@ const AlarmStatus = require("../models/alarmStatus");
 const DeviceMsg = require("../models/deviceMsg");
 const Device = require("../models/device");
 
+const FRESHNESS_WINDOW_MS = Number(process.env.ALARM_FRESHNESS_MS || 30000);
+
+const isDeviceDataFresh = (device) => {
+  if (!device?.updatedAt) return false;
+  return (
+    Date.now() - new Date(device.updatedAt).getTime() <= FRESHNESS_WINDOW_MS
+  );
+};
+
+const hasThresholdExceeded = (device) => {
+  if (!isDeviceDataFresh(device)) return false;
+
+  const checkNumericSeries = (values, threshold) => {
+    if (!Array.isArray(values) || values.length === 0) return false;
+    const numericThreshold = Number(threshold);
+    if (Number.isNaN(numericThreshold)) return false;
+
+    return values.some(
+      (item) => Number(item?.value ?? item) > numericThreshold,
+    );
+  };
+
+  if (
+    checkNumericSeries(
+      device?.ResValues?.DATASTREAMS,
+      device?.resSensorsThreshold,
+    )
+  ) {
+    return true;
+  }
+
+  if (
+    checkNumericSeries(
+      device?.NerValues?.DATASTREAMS,
+      device?.nerSensorsThreshold,
+    )
+  ) {
+    return true;
+  }
+
+  if (
+    checkNumericSeries(
+      device?.SpdValues?.DATASTREAMS,
+      device?.spdSensorsThreshold,
+    )
+  ) {
+    return true;
+  }
+
+  if (Array.isArray(device?.VmrValues?.DATASTREAMS)) {
+    const thresholds = device?.vmrSensorsThreshold || {};
+    return device.VmrValues.DATASTREAMS.some((stream) => {
+      const values = Array.isArray(stream?.value) ? stream.value : [];
+      return (
+        Number(values[0]?.value ?? values[0] ?? 0) >
+          Number(thresholds.r ?? 0) ||
+        Number(values[1]?.value ?? values[1] ?? 0) >
+          Number(thresholds.y ?? 0) ||
+        Number(values[2]?.value ?? values[2] ?? 0) >
+          Number(thresholds.b ?? 0) ||
+        Number(values[3]?.value ?? values[3] ?? 0) >
+          Number(thresholds.ry ?? 0) ||
+        Number(values[4]?.value ?? values[4] ?? 0) >
+          Number(thresholds.yb ?? 0) ||
+        Number(values[5]?.value ?? values[5] ?? 0) > Number(thresholds.rb ?? 0)
+      );
+    });
+  }
+
+  return false;
+};
+
 exports.getAlarmGraphValue = async (req, res) => {
   try {
     const { startDate, endDate, deviceId, sensorName } = req.query;
@@ -88,7 +160,7 @@ exports.updateStatus = async (req, res) => {
       await alarmStatus.save();
     } else {
       /* First time data not found then it created */
-      await AlarmStatus.create({ status: false });
+      await AlarmStatus.create({ status });
     }
 
     return res.status(200).json({ msg: "Status Updated", success: true });
@@ -102,31 +174,22 @@ exports.updateStatus = async (req, res) => {
 exports.getAlarmStatus = async (req, res) => {
   try {
     let data = await AlarmStatus.findOne({}).select("-_id status").lean();
-
-    const deviceData = await Device.find();
+    const deviceData = await Device.find().lean();
 
     console.log("AlarmStatus:", data);
-    // ✅ FIX 1: handle null
+
     if (!data) {
-      data = { status: false, sound: false };
+      await AlarmStatus.create({ status: true });
+      data = { status: true, sound: false };
     } else {
       data.sound = false;
     }
 
-    // ✅ FIX 2: only run loop if status is true
     if (data.status) {
       for (let item of deviceData) {
-        if (
-          item?.vmrSensorsThreshold <=
-            item?.VmrValues?.DATASTREAMS?.[0]?.value ||
-          item?.resSensorsThreshold <=
-            item?.ResValues?.DATASTREAMS?.[0]?.value ||
-          item?.spdSensorsThreshold <=
-            item?.SpdValues?.DATASTREAMS?.[0]?.value ||
-          item?.nerSensorsThreshold <= item?.NerValues?.DATASTREAMS?.[0]?.value
-        ) {
+        if (hasThresholdExceeded(item)) {
           data.sound = true;
-          break; // ✅ optimization: stop once true
+          break;
         }
       }
     }
@@ -189,8 +252,15 @@ exports.getAlarmData = async (req, res, next) => {
     }
 
     // Validate sort input
-    const allowedSortFields = ["createdAt", "alarmValue", "thresholdValue", "SensorName"];
-    const safeSortBy = allowedSortFields.includes(sortBy) ? sortBy : "createdAt";
+    const allowedSortFields = [
+      "createdAt",
+      "alarmValue",
+      "thresholdValue",
+      "SensorName",
+    ];
+    const safeSortBy = allowedSortFields.includes(sortBy)
+      ? sortBy
+      : "createdAt";
     const safeSortType = sortType === 1 || sortType === -1 ? sortType : -1;
 
     let arrQuery = [
@@ -460,9 +530,7 @@ exports.filterAlarm = async (req, res, next) => {
           deviceId,
           SensorName: { $regex: /^[P][H]/, $options: "m" },
         });
-        return res
-          .status(200)
-          .json({ msg: filteredAlarm, lengthData: length });
+        return res.status(200).json({ msg: filteredAlarm, lengthData: length });
       }
 
       if (sensorName === "RES") {
@@ -487,9 +555,7 @@ exports.filterAlarm = async (req, res, next) => {
           deviceId,
           SensorName: { $regex: /^[R]/, $options: "m" },
         });
-        return res
-          .status(200)
-          .json({ msg: filteredAlarm, lengthData: length });
+        return res.status(200).json({ msg: filteredAlarm, lengthData: length });
       }
       filteredAlarm = await Alarm.find({
         deviceId,
@@ -512,9 +578,7 @@ exports.filterAlarm = async (req, res, next) => {
         deviceId,
         SensorName: { $regex: sensorName, $options: "i" },
       });
-      return res
-        .status(200)
-        .json({ msg: filteredAlarm, lengthData: length });
+      return res.status(200).json({ msg: filteredAlarm, lengthData: length });
     }
   } catch (error) {
     console.log("error from filterAlarm ", error);

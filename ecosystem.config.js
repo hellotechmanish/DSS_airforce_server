@@ -96,9 +96,9 @@
 module.exports = {
   apps: [
     {
-      name: "mern-server",
+      name: "Server",
       script: "app.js",
-      instances: 3,
+      instances: 1,
       exec_mode: "cluster",
       env: {
         NODE_ENV: "production", //port :5009
