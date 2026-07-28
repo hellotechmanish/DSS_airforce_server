@@ -6,6 +6,67 @@ const AlarmStatus = require("../models/alarmStatus");
 const DeviceMsg = require("../models/deviceMsg");
 const Device = require("../models/device");
 
+// Helper: numeric-safe threshold comparison
+const isThresholdExceeded = (threshold, value) => {
+  const t = Number(threshold);
+  const v = Number(value);
+  if (Number.isNaN(t) || Number.isNaN(v)) return false;
+  return v >= t;
+};
+
+// Helper: determine if a device currently has any threshold-exceeding value
+const deviceHasActiveAlarm = (dev) => {
+  if (!dev) return false;
+
+  try {
+    const streamExceedsThreshold = (streams, threshold) =>
+      Array.isArray(streams) &&
+      streams.some((stream) => isThresholdExceeded(threshold, stream?.value));
+
+    if (
+      streamExceedsThreshold(
+        dev?.ResValues?.DATASTREAMS,
+        dev.resSensorsThreshold,
+      )
+    )
+      return true;
+
+    if (
+      streamExceedsThreshold(
+        dev?.SpdValues?.DATASTREAMS,
+        dev.spdSensorsThreshold,
+      )
+    )
+      return true;
+
+    if (
+      streamExceedsThreshold(
+        dev?.NerValues?.DATASTREAMS,
+        dev.nerSensorsThreshold,
+      )
+    )
+      return true;
+
+    const phaseNames = ["r", "y", "b", "ry", "yb", "rb"];
+    const vmrExceeded = dev?.VmrValues?.DATASTREAMS?.some((stream) =>
+      Array.isArray(stream?.value) &&
+      stream.value.some((phase, index) =>
+        isThresholdExceeded(
+          dev?.vmrSensorsThreshold?.[phase?.phaseNumber || phaseNames[index]],
+          phase?.value,
+        ),
+      ),
+    );
+
+    if (vmrExceeded)
+      return true;
+  } catch (e) {
+    return false;
+  }
+
+  return false;
+};
+
 exports.getAlarmGraphValue = async (req, res) => {
   try {
     const { startDate, endDate, deviceId, sensorName } = req.query;
@@ -74,21 +135,39 @@ exports.getAlarmGraphValue = async (req, res) => {
 /* It is used to cancelled the alarm sound */
 exports.updateStatus = async (req, res) => {
   try {
-    const { status } = req.body;
-    if (status != false && status != true) {
+    // Accept either `status` (enable/disable alarm system) or `muted` (user mute)
+    const { status, muted } = req.body;
+
+    if (typeof status === "undefined" && typeof muted === "undefined") {
       return res
         .status(400)
-        .json({ msg: "Status must be 'true' or 'false'", success: false });
+        .json({ msg: "Provide 'status' or 'muted' boolean", success: false });
+    }
+
+    if (typeof status !== "undefined" && status !== true && status !== false) {
+      return res
+        .status(400)
+        .json({ msg: "Status must be boolean", success: false });
+    }
+
+    if (typeof muted !== "undefined" && muted !== true && muted !== false) {
+      return res
+        .status(400)
+        .json({ msg: "Muted must be boolean", success: false });
     }
 
     const alarmStatus = await AlarmStatus.findOne({});
 
     if (alarmStatus) {
-      alarmStatus.status = status;
+      if (typeof status !== "undefined") alarmStatus.status = status;
+      if (typeof muted !== "undefined") alarmStatus.muted = muted;
       await alarmStatus.save();
     } else {
       /* First time data not found then it created */
-      await AlarmStatus.create({ status: false });
+      await AlarmStatus.create({
+        status: typeof status !== "undefined" ? status : true,
+        muted: typeof muted !== "undefined" ? muted : false,
+      });
     }
 
     return res.status(200).json({ msg: "Status Updated", success: true });
@@ -98,37 +177,45 @@ exports.updateStatus = async (req, res) => {
   }
 };
 
-/* It is used to cancelled the alarm sound */
+/* Returns alarm status and whether the client should play sound */
 exports.getAlarmStatus = async (req, res) => {
   try {
-    let data = await AlarmStatus.findOne({}).select("-_id status").lean();
+    let data = await AlarmStatus.findOne({}).select("-_id status muted").lean();
 
     const deviceData = await Device.find();
 
     console.log("AlarmStatus:", data);
-    //    FIX 1: handle null
+
+    // Ensure a consistent payload
     if (!data) {
-      data = { status: false, sound: false };
-    } else {
-      data.sound = false;
+      data = { status: true, muted: false, sound: false };
+      await AlarmStatus.create({ status: true, muted: false });
     }
 
-    //    FIX 2: only run loop if status is true
+    if (typeof data.muted !== "boolean") data.muted = false;
+    if (typeof data.status !== "boolean") data.status = true;
+
+    data.sound = false;
+
+    // `sound` represents the actual threshold state. The client uses `muted`
+    // separately to decide whether that active alarm may play audio.
+    const FRESHNESS_MS = parseInt(process.env.ALARM_FRESHNESS_MS) || 30000;
+
     if (data.status) {
-      for (let item of deviceData) {
-        if (
-          item?.vmrSensorsThreshold <=
-            item?.VmrValues?.DATASTREAMS?.[0]?.value ||
-          item?.resSensorsThreshold <=
-            item?.ResValues?.DATASTREAMS?.[0]?.value ||
-          item?.spdSensorsThreshold <=
-            item?.SpdValues?.DATASTREAMS?.[0]?.value ||
-          item?.nerSensorsThreshold <= item?.NerValues?.DATASTREAMS?.[0]?.value
-        ) {
-          data.sound = true;
-          break; //    optimization: stop once true
-        }
-      }
+      const now = Date.now();
+      const anyActiveAlarm = deviceData.some((dev) => {
+        if (!dev) return false;
+        // `updatedAt` is maintained by the Device schema. `lastUpdated` is
+        // retained as a fallback for older records.
+        const lastUpdate = dev.lastUpdated || dev.updatedAt;
+        if (!lastUpdate) return false;
+        const lu = new Date(lastUpdate).getTime();
+        if (Number.isNaN(lu)) return false;
+        if (now - lu > FRESHNESS_MS) return false;
+        return deviceHasActiveAlarm(dev);
+      });
+
+      data.sound = Boolean(anyActiveAlarm);
     }
 
     return res.status(200).json({ data, success: true });

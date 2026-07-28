@@ -26,7 +26,7 @@ exports.checkauth = async (req, res, next) => {
 
     const redisKey = `session:${userId}`;
 
-    console.log("=====================>", redisKey);
+    // console.log("=====================>", redisKey);
 
     // 3. Get session from Redis
     const session = await redisClient.get(redisKey);
@@ -40,7 +40,7 @@ exports.checkauth = async (req, res, next) => {
 
     const sessionData = JSON.parse(session);
 
-    console.log("Redis Session:", sessionData);
+    // console.log("Redis Session:", sessionData);
 
     // 4. Check session status
     if (sessionData.status !== true) {
