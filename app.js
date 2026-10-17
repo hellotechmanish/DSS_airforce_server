@@ -13,6 +13,7 @@ var ObjectId = require("mongodb").ObjectId;
 const morgan = require("morgan");
 const { checkauth } = require("./middleware/checkauth");
 const helmet = require("helmet");
+const seedDefaultUsers = require("./utils/seedDefaultUsers");
 
 const app = express();
 require("dotenv").config();
@@ -59,8 +60,9 @@ mongoose
     useUnifiedTopology: true,
     serverSelectionTimeoutMS: 5000,
   })
-  .then(() => {
+  .then(async () => {
     console.log("[ MongoDB connected successfully ]");
+    await seedDefaultUsers();
 
     // Start server only after DB connects
     app.listen(PORT, () => {
